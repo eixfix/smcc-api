@@ -1,0 +1,230 @@
+// Prisma schema for the load-test orchestration API.
+// Extend this schema with project, organization, user, and task models.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMINISTRATOR
+  OWNER
+  MEMBER
+}
+
+enum TaskMode {
+  SMOKE
+  STRESS
+  SOAK
+  SPIKE
+  CUSTOM
+}
+
+enum ServerAgentStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum ServerScanStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  TIMED_OUT
+}
+
+model User {
+  id               String              @id @default(cuid())
+  email            String              @unique
+  name             String
+  passwordHash     String
+  role             Role                @default(MEMBER)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  organizations    OrganizationMember[]
+  ownedOrganizations Organization[] @relation("OrganizationOwner")
+  serversCreated   Server[]          @relation("ServerCreatedBy")
+  issuedAgents     ServerAgent[]     @relation("ServerAgentIssuedBy")
+
+  @@map("users")
+}
+
+model Organization {
+  id          String               @id @default(cuid())
+  name        String
+  slug        String               @unique
+  credits     Int                  @default(0)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  lastCreditedAt DateTime          @default(now())
+  lastDebitAt DateTime?
+  scanSuspendedAt DateTime?
+  projects    Project[]
+  members     OrganizationMember[]
+  ownerId     String?
+  owner       User?                @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  servers     Server[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id              String   @id @default(cuid())
+  organizationId  String
+  userId          String
+  role            Role     @default(MEMBER)
+  createdAt       DateTime @default(now())
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  user            User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@map("organization_members")
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  organizationId  String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  tasks           Task[]
+
+  @@map("projects")
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  projectId   String
+  label       String
+  targetUrl   String
+  mode        TaskMode
+  scheduleAt  DateTime?
+  method      String    @default("GET")
+  headers     Json?
+  payload     String?
+  customVus   Int?
+  durationSeconds Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     Project   @relation(fields: [projectId], references: [id])
+  reports     TaskReport[]
+
+  @@map("tasks")
+}
+
+model TaskReport {
+  id          String    @id @default(cuid())
+  taskId      String
+  status      String
+  startedAt   DateTime
+  completedAt DateTime?
+  summaryJson Json
+
+  task        Task      @relation(fields: [taskId], references: [id])
+
+  @@map("task_reports")
+}
+
+model Server {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  hostname       String?
+  description    String?
+  createdById    String?
+  isSuspended    Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy   User?         @relation("ServerCreatedBy", fields: [createdById], references: [id])
+  agents      ServerAgent[]
+  scans       ServerScan[]
+  telemetry   ServerTelemetry[]
+
+  @@map("servers")
+  @@index([organizationId, name])
+}
+
+model ServerAgent {
+  id          String             @id @default(cuid())
+  serverId    String
+  accessKey   String             @unique
+  hashedSecret String
+  issuedById  String?
+  issuedAt    DateTime           @default(now())
+  expiresAt   DateTime?
+  lastSeenAt  DateTime?
+  status      ServerAgentStatus  @default(ACTIVE)
+
+  server     Server   @relation(fields: [serverId], references: [id])
+  issuedBy   User?    @relation("ServerAgentIssuedBy", fields: [issuedById], references: [id])
+  scans      ServerScan[]
+  telemetry  ServerTelemetry[]
+
+  @@map("server_agents")
+  @@index([serverId, status])
+}
+
+model ServerScan {
+  id             String            @id @default(cuid())
+  serverId       String
+  agentId        String?
+  playbook       String
+  parameters     Json?
+  status         ServerScanStatus  @default(QUEUED)
+  queuedAt       DateTime          @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  failureReason  String?
+  creditsCharged Int?
+
+  server Server @relation(fields: [serverId], references: [id])
+  agent  ServerAgent? @relation(fields: [agentId], references: [id])
+  result ServerScanResult?
+
+  @@map("server_scans")
+  @@index([serverId, queuedAt])
+}
+
+model ServerScanResult {
+  scanId                String    @id
+  summaryJson           Json?
+  rawLog                String?   @db.LongText
+  storageMetricsJson    Json?
+  memoryMetricsJson     Json?
+  securityFindingsJson  Json?
+  createdAt             DateTime  @default(now())
+
+  scan ServerScan @relation(fields: [scanId], references: [id])
+
+  @@map("server_scan_results")
+}
+
+model ServerTelemetry {
+  id             String   @id @default(cuid())
+  serverId       String
+  agentId        String?
+  cpuPercent     Float?
+  memoryPercent  Float?
+  diskPercent    Float?
+  rawJson        Json?
+  creditsCharged Int?
+  collectedAt    DateTime @default(now())
+
+  server Server @relation(fields: [serverId], references: [id])
+  agent  ServerAgent? @relation(fields: [agentId], references: [id])
+
+  @@map("server_telemetry")
+  @@index([serverId, collectedAt])
+}

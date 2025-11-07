@@ -1,0 +1,50 @@
+import type { AuthenticatedUser } from '../../common/types/auth-user';
+import { AgentAuthDto } from './dto/agent-auth.dto';
+import { CreateServerAgentDto } from './dto/create-server-agent.dto';
+import { ServerAgentService } from './server-agent.service';
+export declare class ServerAgentController {
+    private readonly serverAgentService;
+    constructor(serverAgentService: ServerAgentService);
+    createAgent(serverId: string, payload: CreateServerAgentDto, user: AuthenticatedUser): Promise<{
+        agent: {
+            id: string;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
+            serverId: string;
+            accessKey: string;
+            issuedAt: Date;
+            expiresAt: Date | null;
+        };
+        credentials: {
+            accessKey: string;
+            secret: string;
+        };
+    }>;
+    revokeAgent(agentId: string, user: AuthenticatedUser): Promise<{
+        id: string;
+        status: import(".prisma/client").$Enums.ServerAgentStatus;
+        lastSeenAt: Date | null;
+    }>;
+    authenticate(payload: AgentAuthDto): Promise<{
+        sessionToken: string;
+        expiresInSeconds: number;
+        agent: {
+            id: string;
+            serverId: string;
+            status: "ACTIVE";
+            lastSeenAt: Date;
+            expiresAt: Date | null;
+        };
+        server: {
+            id: string;
+            name: string;
+            isSuspended: false;
+        };
+        organization: {
+            id: string;
+            name: string;
+            credits: number;
+            scanSuspendedAt: null;
+        };
+    }>;
+}
+//# sourceMappingURL=server-agent.controller.d.ts.map

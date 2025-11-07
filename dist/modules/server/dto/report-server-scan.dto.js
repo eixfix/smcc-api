@@ -1,0 +1,53 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var _a;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ReportServerScanDto = void 0;
+const class_validator_1 = require("class-validator");
+const client_1 = require("@prisma/client");
+class ReportServerScanDto {
+}
+exports.ReportServerScanDto = ReportServerScanDto;
+__decorate([
+    (0, class_validator_1.IsEnum)(client_1.ServerScanStatus),
+    __metadata("design:type", typeof (_a = typeof client_1.ServerScanStatus !== "undefined" && client_1.ServerScanStatus) === "function" ? _a : Object)
+], ReportServerScanDto.prototype, "status", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ReportServerScanDto.prototype, "failureReason", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], ReportServerScanDto.prototype, "summary", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ReportServerScanDto.prototype, "rawLog", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], ReportServerScanDto.prototype, "storageMetrics", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], ReportServerScanDto.prototype, "memoryMetrics", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], ReportServerScanDto.prototype, "securityFindings", void 0);
+//# sourceMappingURL=report-server-scan.dto.js.map

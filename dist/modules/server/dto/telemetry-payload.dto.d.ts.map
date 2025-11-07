@@ -1,0 +1,1 @@
+{"version":3,"file":"telemetry-payload.dto.d.ts","sourceRoot":"","sources":["../../../../src/modules/server/dto/telemetry-payload.dto.ts"],"names":[],"mappings":"AAEA,qBAAa,mBAAmB;IAK9B,UAAU,CAAC,EAAE,MAAM,CAAC;IAMpB,aAAa,CAAC,EAAE,MAAM,CAAC;IAMvB,WAAW,CAAC,EAAE,MAAM,CAAC;IAIrB,GAAG,CAAC,EAAE,MAAM,CAAC,MAAM,EAAE,OAAO,CAAC,CAAC;CAC/B"}
