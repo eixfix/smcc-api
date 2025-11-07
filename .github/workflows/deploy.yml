@@ -1,0 +1,63 @@
+name: Deploy API (staging)
+
+on:
+  push:
+    branches: [ "main" ]     # staging = main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api-staging
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Prune dev deps (prod only)
+        run: npm prune --omit=dev
+
+      - name: Package artifact
+        run: |
+          mkdir -p release
+          cp -r dist package.json package-lock.json node_modules release/
+          tar -C release -czf api-${{ github.sha }}.tgz .
+
+      - name: Prepare SSH
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          if [ -n "${{ secrets.SSH_KNOWN_HOSTS }}" ]; then
+            echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -t ed25519 ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          fi
+
+      - name: Upload & finalize on server
+        run: |
+          scp api-${{ github.sha }}.tgz ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "/opt/smcc/finalize_release.sh api ${{ github.sha }} /tmp/api-${{ github.sha }}.tgz .env"
+
+      - name: Health check (local port)
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "curl -sSI http://127.0.0.1:4001/ | head -n1 || true"
