@@ -52,28 +52,28 @@ export declare class TaskController {
         updatedAt: Date;
     }>;
     run(taskId: string, user: AuthenticatedUser): Promise<{
-        id: string;
-        taskId: string;
         status: string;
         startedAt: Date;
         completedAt: Date | null;
+        id: string;
+        taskId: string;
         summaryJson: import("@prisma/client/runtime/library").JsonValue;
     }>;
     findReports(taskId: string, user: AuthenticatedUser): Promise<{
-        id: string;
-        taskId: string;
         status: string;
         startedAt: Date;
         completedAt: Date | null;
+        id: string;
+        taskId: string;
         summaryJson: import("@prisma/client/runtime/library").JsonValue;
     }[]>;
     exportRecent(user: AuthenticatedUser, res: Response): Promise<void>;
     findRecent(user: AuthenticatedUser): Promise<({
-        id: string;
-        taskId: string;
         status: string;
         startedAt: Date;
         completedAt: Date | null;
+        id: string;
+        taskId: string;
         summaryJson: import("@prisma/client/runtime/library").JsonValue;
     } & {
         task: {

@@ -5,25 +5,26 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
 var TaskRunnerService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskRunnerService = void 0;
 const common_1 = require("@nestjs/common");
 const node_child_process_1 = require("node:child_process");
 const node_crypto_1 = require("node:crypto");
+const node_fs_1 = require("node:fs");
 const promises_1 = require("node:fs/promises");
 const node_os_1 = require("node:os");
-const node_path_1 = require("node:path");
+const path = require("node:path");
 let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
     constructor() {
+        var _a;
         this.logger = new common_1.Logger(TaskRunnerService_1.name);
         this.queue = [];
         this.running = false;
         this.bundleReady = false;
-        const defaultRoot = resolve(process.cwd(), '../load-tests');
-        this.loadTestsRoot = process.env.LOAD_TESTS_ROOT
-        ? resolve(process.env.LOAD_TESTS_ROOT)
-        : defaultRoot;
         this.scriptByMode = {
             SMOKE: 'dist/smoke/bootstrap.js',
             STRESS: 'dist/smoke/bootstrap.js',
@@ -31,6 +32,22 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
             SPIKE: 'dist/smoke/bootstrap.js',
             CUSTOM: 'dist/smoke/bootstrap.js'
         };
+        const serverDefaultRoot = path.resolve(process.cwd(), '../load-test/current');
+        const localDefaultRoot = path.resolve(process.cwd(), '../load-tests');
+        const defaultRoot = (0, node_fs_1.existsSync)(serverDefaultRoot) ? serverDefaultRoot : localDefaultRoot;
+        this.loadTestsRoot = process.env.LOAD_TESTS_ROOT
+            ? path.resolve(process.env.LOAD_TESTS_ROOT)
+            : defaultRoot;
+        this.logger.log(`Using LOAD_TESTS_ROOT: ${this.loadTestsRoot}`);
+        this.npmPath = (_a = this.normalizeExecutable(process.env.NPM_PATH)) !== null && _a !== void 0 ? _a : 'npm';
+        this.k6Path = this.normalizeExecutable(process.env.K6_PATH);
+        this.logger.log(`Using npm executable: ${this.npmPath}`);
+        if (this.k6Path) {
+            this.logger.log(`Using k6 executable: ${this.k6Path}`);
+        }
+        else {
+            this.logger.log('k6 executable not set; falling back to npm exec k6');
+        }
     }
     async enqueue(request) {
         return new Promise((resolve, reject) => {
@@ -65,7 +82,7 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
     }
     async buildBundles() {
         this.logger.log('Compiling k6 bundles for load-tests');
-        const code = await this.execCommand('npm', ['run', 'build'], this.loadTestsRoot);
+        const code = await this.execCommand(this.npmPath, ['run', 'build'], this.loadTestsRoot);
         if (code !== 0) {
             throw new Error('Failed to compile k6 bundles. Ensure dependencies are installed.');
         }
@@ -73,9 +90,9 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
     async execute(request) {
         var _a, _b, _c;
         const scriptPath = (_a = this.scriptByMode[request.mode]) !== null && _a !== void 0 ? _a : this.scriptByMode.SMOKE;
-        const resolvedScript = (0, node_path_1.resolve)(this.loadTestsRoot, scriptPath);
-        const summaryDir = await (0, promises_1.mkdtemp)((0, node_path_1.join)((0, node_os_1.tmpdir)(), 'k6-summary-'));
-        const summaryFile = (0, node_path_1.join)(summaryDir, `${(0, node_crypto_1.randomUUID)()}.json`);
+        const resolvedScript = path.resolve(this.loadTestsRoot, scriptPath);
+        const summaryDir = await (0, promises_1.mkdtemp)(path.join((0, node_os_1.tmpdir)(), 'k6-summary-'));
+        const summaryFile = path.join(summaryDir, `${(0, node_crypto_1.randomUUID)()}.json`);
         const env = {
             ...process.env,
             TARGET_URL: request.targetUrl,
@@ -95,7 +112,9 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
         const args = ['run', resolvedScript, '--summary-export', summaryFile];
         this.logger.log(`Executing k6 scenario for task ${request.taskId} (${request.mode})`);
         const startedAt = new Date();
-        const exitCode = await this.execCommand('k6', args, this.loadTestsRoot, env);
+        const exitCode = this.k6Path
+            ? await this.execCommand(this.k6Path, args, this.loadTestsRoot, env)
+            : await this.execCommand(this.npmPath, ['exec', '--yes', 'k6', ...args], this.loadTestsRoot, env);
         const completedAt = new Date();
         const status = exitCode === 0 ? 'completed' : 'failed';
         let summary = null;
@@ -120,13 +139,14 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
         return { status, startedAt, completedAt, summary };
     }
     async execCommand(command, args, cwd, env) {
-        const executable = process.platform === 'win32' && !command.endsWith('.cmd')
-            ? `${command}.cmd`
-            : command;
+        const needsCmdExtension = process.platform === 'win32' &&
+            !command.endsWith('.cmd') &&
+            !command.includes(path.sep);
+        const executable = needsCmdExtension ? `${command}.cmd` : command;
         return new Promise((resolve, reject) => {
             const child = (0, node_child_process_1.spawn)(executable, args, {
                 cwd,
-                env,
+                env: { ...process.env, ...env },
                 stdio: 'inherit'
             });
             child.on('error', (error) => reject(error));
@@ -138,6 +158,22 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
                 resolve(code);
             });
         });
+    }
+    normalizeExecutable(value) {
+        if (!value) {
+            return null;
+        }
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return null;
+        }
+        if (path.isAbsolute(trimmed)) {
+            return trimmed;
+        }
+        if (trimmed.startsWith('./') || trimmed.startsWith('../')) {
+            return path.resolve(process.cwd(), trimmed);
+        }
+        return trimmed;
     }
     toSummary(rawJson, request) {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
@@ -183,6 +219,7 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
 };
 exports.TaskRunnerService = TaskRunnerService;
 exports.TaskRunnerService = TaskRunnerService = TaskRunnerService_1 = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __metadata("design:paramtypes", [])
 ], TaskRunnerService);
 //# sourceMappingURL=task-runner.service.js.map

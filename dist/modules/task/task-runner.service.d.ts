@@ -20,12 +20,16 @@ export declare class TaskRunnerService {
     private running;
     private bundleReady;
     private readonly loadTestsRoot;
+    private readonly npmPath;
+    private readonly k6Path;
     private readonly scriptByMode;
+    constructor();
     enqueue(request: RunRequest): Promise<TaskRunSummary>;
     private processQueue;
     private buildBundles;
     private execute;
     private execCommand;
+    private normalizeExecutable;
     private toSummary;
 }
 export {};
