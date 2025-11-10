@@ -1,7 +1,9 @@
-import { IsArray, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class AgentAuthDto {
-  @IsUUID()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(36)
   serverId!: string;
 
   @IsString()

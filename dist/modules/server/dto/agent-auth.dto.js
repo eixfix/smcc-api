@@ -15,7 +15,9 @@ class AgentAuthDto {
 }
 exports.AgentAuthDto = AgentAuthDto;
 __decorate([
-    (0, class_validator_1.IsUUID)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.MaxLength)(36),
     __metadata("design:type", String)
 ], AgentAuthDto.prototype, "serverId", void 0);
 __decorate([
