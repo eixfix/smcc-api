@@ -10,6 +10,7 @@ interface AgentBootstrapTemplateOptions {
   defaultUpdateIntervalMinutes: number;
   derivedKey: string;
   installNonce: string;
+  logPrefix: string;
 }
 
 export function buildAgentBootstrapTemplate({
@@ -20,7 +21,8 @@ export function buildAgentBootstrapTemplate({
   agentVersion,
   defaultUpdateIntervalMinutes,
   derivedKey,
-  installNonce
+  installNonce,
+  logPrefix
 }: AgentBootstrapTemplateOptions): string {
   const escapedApiUrl = sanitizeLiteral(apiUrl);
   const escapedConfigPath = sanitizeLiteral(configPath);
@@ -28,6 +30,7 @@ export function buildAgentBootstrapTemplate({
   const escapedBinaryPath = sanitizeLiteral(binaryPath);
   const escapedDerivedKey = sanitizeLiteral(derivedKey);
   const escapedInstallNonce = sanitizeLiteral(installNonce);
+  const escapedLogPrefix = sanitizeLiteral(logPrefix || 'loadtest-agent');
 
   return `#!/usr/bin/env node
 const crypto = require('node:crypto');
@@ -42,6 +45,7 @@ const AGENT_FILE_PATH = process.env.LOADTEST_AGENT_BINARY_PATH ?? '${escapedBina
 const DEFAULT_UPDATE_INTERVAL_MINUTES = ${defaultUpdateIntervalMinutes};
 const FALLBACK_DERIVED_KEY_B64 = '${escapedDerivedKey}';
 const INSTALL_NONCE = '${escapedInstallNonce}';
+const LOG_PREFIX = '${escapedLogPrefix}';
 
 let sessionEnvelope = null;
 
@@ -73,7 +77,7 @@ function loadMetadata() {
     const raw = fs.readFileSync(DEFAULT_METADATA_PATH, 'utf8');
     return JSON.parse(raw);
   } catch (error) {
-    console.error('[loadtest-agent] Failed to parse metadata:', error.message);
+    console.error('[\${LOG_PREFIX}] Failed to parse metadata:', error.message);
     throw error;
   }
 }
@@ -225,7 +229,7 @@ function handleConfigCommand(argv) {
 
   for (const key of required) {
     if (!args[key]) {
-      console.error(\`[loadtest-agent] Missing --${'{'}key{'}'}=value\`);
+      console.error(\`[\${LOG_PREFIX}] Missing --${'{'}key{'}'}=value\`);
       process.exit(1);
     }
   }
@@ -243,7 +247,7 @@ function handleConfigCommand(argv) {
   };
 
   saveEncryptedConfig(nextConfig);
-  console.log('[loadtest-agent] Configuration encrypted and updated.');
+  console.log('[\${LOG_PREFIX}] Configuration encrypted and updated.');
 }
 
 function sleep(ms) {
@@ -410,7 +414,7 @@ async function main() {
     1000;
   const apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\\/$/, '');
 
-  console.log('[loadtest-agent] Starting agent loop');
+  console.log('[\${LOG_PREFIX}] Starting agent loop');
   let sessionToken = null;
   let tokenExpiresAt = 0;
   let lastTelemetryAt = 0;
@@ -419,7 +423,7 @@ async function main() {
   while (true) {
     try {
       if (!sessionToken || Date.now() >= tokenExpiresAt - 60_000) {
-        console.log('[loadtest-agent] Authenticating with API');
+        console.log('[\${LOG_PREFIX}] Authenticating with API');
         const session = await authenticate(config, apiBaseUrl);
         sessionToken = session.sessionToken;
         tokenExpiresAt = Date.now() + session.expiresInSeconds * 1000;
@@ -428,7 +432,7 @@ async function main() {
       if (Date.now() - lastTelemetryAt >= telemetryIntervalMs) {
         await sendTelemetry(apiBaseUrl, sessionToken, config);
         lastTelemetryAt = Date.now();
-        console.log('[loadtest-agent] Telemetry sent');
+        console.log('[\${LOG_PREFIX}] Telemetry sent');
       }
 
       if (Date.now() - lastUpdateCheckAt >= updateIntervalMs) {
@@ -443,7 +447,7 @@ async function main() {
       const job = await fetchNextScan(apiBaseUrl, sessionToken);
 
       if (job) {
-        console.log(\`[loadtest-agent] Received scan job \${job.id}, marking as failed placeholder\`);
+        console.log(\`[\${LOG_PREFIX}] Received scan job \${job.id}, marking as failed placeholder\`);
         await reportScanFailure(
           apiBaseUrl,
           sessionToken,
@@ -454,7 +458,7 @@ async function main() {
         await sleep(pollIntervalMs);
       }
     } catch (error) {
-      console.error('[loadtest-agent] Error:', error.message);
+      console.error('[\${LOG_PREFIX}] Error:', error.message);
       sessionToken = null;
       await sleep(Math.min(pollIntervalMs, 10_000));
     }
@@ -462,7 +466,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('[loadtest-agent] Fatal error:', error);
+  console.error('[\${LOG_PREFIX}] Fatal error:', error);
   process.exit(1);
 });
 `;

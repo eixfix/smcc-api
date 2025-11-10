@@ -108,7 +108,8 @@ let ServerAgentInstallController = class ServerAgentInstallController {
             agentVersion,
             defaultUpdateIntervalMinutes,
             derivedKey,
-            installNonce
+            installNonce,
+            logPrefix: serviceName
         });
         return `#!/usr/bin/env bash
 set -euo pipefail

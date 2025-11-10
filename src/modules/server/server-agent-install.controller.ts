@@ -149,7 +149,8 @@ export class ServerAgentInstallController {
       agentVersion,
       defaultUpdateIntervalMinutes,
       derivedKey,
-      installNonce
+      installNonce,
+      logPrefix: serviceName
     });
 
     return `#!/usr/bin/env bash
