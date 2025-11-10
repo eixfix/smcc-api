@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException
@@ -8,6 +9,7 @@ import { Role } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types/auth-user';
+import { normalizeIp } from '../../common/utils/ip.utils';
 import { CreateServerDto } from './dto/create-server.dto';
 import { UpdateServerDto } from './dto/update-server.dto';
 
@@ -15,6 +17,7 @@ const SERVER_SUMMARY_SELECT = {
   id: true,
   name: true,
   hostname: true,
+  allowedIp: true,
   description: true,
   isSuspended: true,
   createdAt: true,
@@ -73,12 +76,18 @@ export class ServerService {
 
   async create(payload: CreateServerDto, user: AuthenticatedUser) {
     await this.ensureOrganizationOwnerAccess(payload.organizationId, user);
+    const allowedIp = normalizeIp(payload.allowedIp);
+
+    if (!allowedIp) {
+      throw new BadRequestException('A valid server IP address is required.');
+    }
 
     return this.prisma.server.create({
       data: {
         organizationId: payload.organizationId,
         name: payload.name,
         hostname: payload.hostname,
+        allowedIp,
         description: payload.description,
         createdById: user.userId
       },
@@ -157,12 +166,20 @@ export class ServerService {
       await this.ensureOrganizationReadAccess(summary.organizationId, user);
     }
 
+    const allowedIp =
+      payload.allowedIp !== undefined ? normalizeIp(payload.allowedIp) : undefined;
+
+    if (payload.allowedIp !== undefined && !allowedIp) {
+      throw new BadRequestException('A valid server IP address is required.');
+    }
+
     return this.prisma.server.update({
       where: { id },
       data: {
         name: payload.name,
         hostname: payload.hostname,
         description: payload.description,
+        allowedIp,
         isSuspended:
           payload.isSuspended !== undefined ? payload.isSuspended : undefined
       },

@@ -34,6 +34,12 @@ __decorate([
 ], UpdateServerDto.prototype, "description", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsIP)(),
+    __metadata("design:type", String)
+], UpdateServerDto.prototype, "allowedIp", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpdateServerDto.prototype, "isSuspended", void 0);

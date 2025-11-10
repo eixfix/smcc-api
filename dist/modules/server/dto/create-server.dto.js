@@ -32,6 +32,12 @@ __decorate([
     __metadata("design:type", String)
 ], CreateServerDto.prototype, "hostname", void 0);
 __decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsIP)(),
+    __metadata("design:type", String)
+], CreateServerDto.prototype, "allowedIp", void 0);
+__decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(500),

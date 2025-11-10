@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import type { AuthenticatedUser } from '../../common/types/auth-user';
 import { AgentAuthDto } from './dto/agent-auth.dto';
 import { CreateServerAgentDto } from './dto/create-server-agent.dto';
@@ -24,7 +25,7 @@ export declare class ServerAgentController {
         status: import(".prisma/client").$Enums.ServerAgentStatus;
         lastSeenAt: Date | null;
     }>;
-    authenticate(payload: AgentAuthDto): Promise<{
+    authenticate(payload: AgentAuthDto, request: Request): Promise<{
         sessionToken: string;
         expiresInSeconds: number;
         agent: {

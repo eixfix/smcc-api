@@ -27,8 +27,8 @@ export declare class ServerScanService {
         status: import(".prisma/client").$Enums.ServerScanStatus;
         startedAt: Date | null;
         completedAt: Date | null;
-        serverId: string;
         agentId: string | null;
+        serverId: string;
         playbook: string;
         parameters: Prisma.JsonValue;
         queuedAt: Date;
@@ -53,8 +53,8 @@ export declare class ServerScanService {
         status: import(".prisma/client").$Enums.ServerScanStatus;
         startedAt: Date | null;
         completedAt: Date | null;
-        serverId: string;
         agentId: string | null;
+        serverId: string;
         playbook: string;
         parameters: Prisma.JsonValue;
         queuedAt: Date;
@@ -82,8 +82,8 @@ export declare class ServerScanService {
     }>;
     ingestTelemetry(agent: AgentSessionContext, dto: TelemetryPayloadDto): Promise<{
         id: string;
-        serverId: string;
         agentId: string | null;
+        serverId: string;
         creditsCharged: number | null;
         cpuPercent: number | null;
         memoryPercent: number | null;

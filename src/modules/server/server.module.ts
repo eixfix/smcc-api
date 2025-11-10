@@ -10,6 +10,7 @@ import { ServerController } from './server.controller';
 import { ServerScanController } from './server-scan.controller';
 import { ServerScanService } from './server-scan.service';
 import { ServerService } from './server.service';
+import { ServerAgentInstallController } from './server-agent-install.controller';
 
 @Module({
   imports: [
@@ -26,7 +27,12 @@ import { ServerService } from './server.service';
     }),
     OrganizationModule
   ],
-  controllers: [ServerController, ServerAgentController, ServerScanController],
+  controllers: [
+    ServerController,
+    ServerAgentController,
+    ServerScanController,
+    ServerAgentInstallController
+  ],
   providers: [ServerService, ServerAgentService, ServerScanService, AgentSessionGuard]
 })
 export class ServerModule {}

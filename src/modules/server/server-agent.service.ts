@@ -10,6 +10,7 @@ import { randomBytes } from 'crypto';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types/auth-user';
+import { normalizeIp } from '../../common/utils/ip.utils';
 import type { AgentSessionContext } from './guards/agent-session.guard';
 import { ServerService } from './server.service';
 import { AgentAuthDto } from './dto/agent-auth.dto';
@@ -110,7 +111,7 @@ export class ServerAgentService {
     });
   }
 
-  async authenticateAgent(dto: AgentAuthDto) {
+  async authenticateAgent(dto: AgentAuthDto, clientIp: string | null) {
     const agent = await this.prisma.serverAgent.findFirst({
       where: {
         serverId: dto.serverId,
@@ -127,6 +128,7 @@ export class ServerAgentService {
           select: {
             id: true,
             name: true,
+            allowedIp: true,
             isSuspended: true,
             organizationId: true,
             organization: {
@@ -156,6 +158,13 @@ export class ServerAgentService {
         data: { status: ServerAgentStatus.EXPIRED }
       });
       throw new UnauthorizedException('Agent token has expired.');
+    }
+
+    const normalizedClientIp = normalizeIp(clientIp);
+    const allowedIp = normalizeIp(agent.server.allowedIp);
+
+    if (allowedIp && normalizedClientIp !== allowedIp) {
+      throw new UnauthorizedException('Agent IP is not authorized for this server.');
     }
 
     if (agent.server.isSuspended) {

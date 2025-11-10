@@ -13,10 +13,12 @@ exports.ServerService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const ip_utils_1 = require("../../common/utils/ip.utils");
 const SERVER_SUMMARY_SELECT = {
     id: true,
     name: true,
     hostname: true,
+    allowedIp: true,
     description: true,
     isSuspended: true,
     createdAt: true,
@@ -73,11 +75,16 @@ let ServerService = class ServerService {
     }
     async create(payload, user) {
         await this.ensureOrganizationOwnerAccess(payload.organizationId, user);
+        const allowedIp = (0, ip_utils_1.normalizeIp)(payload.allowedIp);
+        if (!allowedIp) {
+            throw new common_1.BadRequestException('A valid server IP address is required.');
+        }
         return this.prisma.server.create({
             data: {
                 organizationId: payload.organizationId,
                 name: payload.name,
                 hostname: payload.hostname,
+                allowedIp,
                 description: payload.description,
                 createdById: user.userId
             },
@@ -144,12 +151,17 @@ let ServerService = class ServerService {
         else {
             await this.ensureOrganizationReadAccess(summary.organizationId, user);
         }
+        const allowedIp = payload.allowedIp !== undefined ? (0, ip_utils_1.normalizeIp)(payload.allowedIp) : undefined;
+        if (payload.allowedIp !== undefined && !allowedIp) {
+            throw new common_1.BadRequestException('A valid server IP address is required.');
+        }
         return this.prisma.server.update({
             where: { id },
             data: {
                 name: payload.name,
                 hostname: payload.hostname,
                 description: payload.description,
+                allowedIp,
                 isSuspended: payload.isSuspended !== undefined ? payload.isSuspended : undefined
             },
             select: SERVER_DETAIL_SELECT

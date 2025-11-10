@@ -1,5 +1,6 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Param, Post, Req } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import type { Request } from 'express';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -8,6 +9,7 @@ import type { AuthenticatedUser } from '../../common/types/auth-user';
 import { AgentAuthDto } from './dto/agent-auth.dto';
 import { CreateServerAgentDto } from './dto/create-server-agent.dto';
 import { ServerAgentService } from './server-agent.service';
+import { extractClientIp } from '../../common/utils/ip.utils';
 
 @Controller()
 export class ServerAgentController {
@@ -34,7 +36,8 @@ export class ServerAgentController {
 
   @Public()
   @Post('agent/auth')
-  authenticate(@Body() payload: AgentAuthDto) {
-    return this.serverAgentService.authenticateAgent(payload);
+  authenticate(@Body() payload: AgentAuthDto, @Req() request: Request) {
+    const clientIp = extractClientIp(request);
+    return this.serverAgentService.authenticateAgent(payload, clientIp);
   }
 }

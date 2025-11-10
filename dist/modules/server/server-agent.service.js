@@ -16,6 +16,7 @@ const client_1 = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 const crypto_1 = require("crypto");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const ip_utils_1 = require("../../common/utils/ip.utils");
 const server_service_1 = require("./server.service");
 const SECRET_TOKEN_BYTE_LENGTH = 32;
 const AGENT_SESSION_TTL_SECONDS = 15 * 60;
@@ -96,7 +97,7 @@ let ServerAgentService = class ServerAgentService {
             }
         });
     }
-    async authenticateAgent(dto) {
+    async authenticateAgent(dto, clientIp) {
         const agent = await this.prisma.serverAgent.findFirst({
             where: {
                 serverId: dto.serverId,
@@ -113,6 +114,7 @@ let ServerAgentService = class ServerAgentService {
                     select: {
                         id: true,
                         name: true,
+                        allowedIp: true,
                         isSuspended: true,
                         organizationId: true,
                         organization: {
@@ -139,6 +141,11 @@ let ServerAgentService = class ServerAgentService {
                 data: { status: client_1.ServerAgentStatus.EXPIRED }
             });
             throw new common_1.UnauthorizedException('Agent token has expired.');
+        }
+        const normalizedClientIp = (0, ip_utils_1.normalizeIp)(clientIp);
+        const allowedIp = (0, ip_utils_1.normalizeIp)(agent.server.allowedIp);
+        if (allowedIp && normalizedClientIp !== allowedIp) {
+            throw new common_1.UnauthorizedException('Agent IP is not authorized for this server.');
         }
         if (agent.server.isSuspended) {
             throw new common_1.ForbiddenException('Server scanning is suspended for this host.');

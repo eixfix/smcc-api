@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsIP, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateServerDto {
   @IsOptional()
@@ -15,6 +15,11 @@ export class UpdateServerDto {
   @IsString()
   @MaxLength(500)
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIP()
+  allowedIp?: string;
 
   @IsOptional()
   @IsBoolean()

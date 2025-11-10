@@ -140,6 +140,7 @@ model Server {
   organizationId String
   name           String
   hostname       String?
+  allowedIp      String?
   description    String?
   createdById    String?
   isSuspended    Boolean   @default(false)

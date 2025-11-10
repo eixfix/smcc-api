@@ -21,6 +21,7 @@ const roles_decorator_1 = require("../../common/decorators/roles.decorator");
 const agent_auth_dto_1 = require("./dto/agent-auth.dto");
 const create_server_agent_dto_1 = require("./dto/create-server-agent.dto");
 const server_agent_service_1 = require("./server-agent.service");
+const ip_utils_1 = require("../../common/utils/ip.utils");
 let ServerAgentController = class ServerAgentController {
     constructor(serverAgentService) {
         this.serverAgentService = serverAgentService;
@@ -31,8 +32,9 @@ let ServerAgentController = class ServerAgentController {
     revokeAgent(agentId, user) {
         return this.serverAgentService.revokeAgent(agentId, user);
     }
-    authenticate(payload) {
-        return this.serverAgentService.authenticateAgent(payload);
+    authenticate(payload, request) {
+        const clientIp = (0, ip_utils_1.extractClientIp)(request);
+        return this.serverAgentService.authenticateAgent(payload, clientIp);
     }
 };
 exports.ServerAgentController = ServerAgentController;
@@ -59,8 +61,9 @@ __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('agent/auth'),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [agent_auth_dto_1.AgentAuthDto]),
+    __metadata("design:paramtypes", [agent_auth_dto_1.AgentAuthDto, Object]),
     __metadata("design:returntype", void 0)
 ], ServerAgentController.prototype, "authenticate", null);
 exports.ServerAgentController = ServerAgentController = __decorate([

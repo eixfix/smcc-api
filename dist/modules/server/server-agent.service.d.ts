@@ -29,7 +29,7 @@ export declare class ServerAgentService {
         status: import(".prisma/client").$Enums.ServerAgentStatus;
         lastSeenAt: Date | null;
     }>;
-    authenticateAgent(dto: AgentAuthDto): Promise<{
+    authenticateAgent(dto: AgentAuthDto, clientIp: string | null): Promise<{
         sessionToken: string;
         expiresInSeconds: number;
         agent: {

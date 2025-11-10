@@ -13,10 +13,13 @@ exports.AgentSessionGuard = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const jwt_1 = require("@nestjs/jwt");
+const prisma_service_1 = require("../../../prisma/prisma.service");
+const ip_utils_1 = require("../../../common/utils/ip.utils");
 let AgentSessionGuard = class AgentSessionGuard {
-    constructor(jwtService, configService) {
+    constructor(jwtService, configService, prisma) {
         this.jwtService = jwtService;
         this.configService = configService;
+        this.prisma = prisma;
     }
     async canActivate(context) {
         var _a;
@@ -37,6 +40,8 @@ let AgentSessionGuard = class AgentSessionGuard {
             if (payload.type !== 'agent-session') {
                 throw new common_1.UnauthorizedException('Invalid agent session token type.');
             }
+            const clientIp = (0, ip_utils_1.extractClientIp)(request);
+            await this.assertAllowedIp(payload.sub, payload.serverId, clientIp);
             request.agent = {
                 agentId: payload.sub,
                 serverId: payload.serverId,
@@ -48,11 +53,36 @@ let AgentSessionGuard = class AgentSessionGuard {
             throw new common_1.UnauthorizedException('Invalid or expired agent session token.');
         }
     }
+    async assertAllowedIp(agentId, serverId, clientIp) {
+        const agent = await this.prisma.serverAgent.findUnique({
+            where: { id: agentId },
+            select: {
+                serverId: true,
+                server: {
+                    select: {
+                        allowedIp: true
+                    }
+                }
+            }
+        });
+        if (!agent || agent.serverId !== serverId) {
+            throw new common_1.UnauthorizedException('Agent session is no longer valid.');
+        }
+        const allowedIp = (0, ip_utils_1.normalizeIp)(agent.server.allowedIp);
+        if (!allowedIp) {
+            return;
+        }
+        const normalizedClientIp = (0, ip_utils_1.normalizeIp)(clientIp);
+        if (!normalizedClientIp || normalizedClientIp !== allowedIp) {
+            throw new common_1.UnauthorizedException('Agent IP is not authorized for this server.');
+        }
+    }
 };
 exports.AgentSessionGuard = AgentSessionGuard;
 exports.AgentSessionGuard = AgentSessionGuard = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [jwt_1.JwtService,
-        config_1.ConfigService])
+        config_1.ConfigService,
+        prisma_service_1.PrismaService])
 ], AgentSessionGuard);
 //# sourceMappingURL=agent-session.guard.js.map

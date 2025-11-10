@@ -18,6 +18,7 @@ const server_controller_1 = require("./server.controller");
 const server_scan_controller_1 = require("./server-scan.controller");
 const server_scan_service_1 = require("./server-scan.service");
 const server_service_1 = require("./server.service");
+const server_agent_install_controller_1 = require("./server-agent-install.controller");
 let ServerModule = class ServerModule {
 };
 exports.ServerModule = ServerModule;
@@ -37,7 +38,12 @@ exports.ServerModule = ServerModule = __decorate([
             }),
             organization_module_1.OrganizationModule
         ],
-        controllers: [server_controller_1.ServerController, server_agent_controller_1.ServerAgentController, server_scan_controller_1.ServerScanController],
+        controllers: [
+            server_controller_1.ServerController,
+            server_agent_controller_1.ServerAgentController,
+            server_scan_controller_1.ServerScanController,
+            server_agent_install_controller_1.ServerAgentInstallController
+        ],
         providers: [server_service_1.ServerService, server_agent_service_1.ServerAgentService, server_scan_service_1.ServerScanService, agent_session_guard_1.AgentSessionGuard]
     })
 ], ServerModule);

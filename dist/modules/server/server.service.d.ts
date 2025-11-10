@@ -20,16 +20,6 @@ export declare class ServerService {
         updatedAt: Date;
         name: string;
         description: string | null;
-        hostname: string | null;
-        isSuspended: boolean;
-        agents: {
-            id: string;
-            status: import(".prisma/client").$Enums.ServerAgentStatus;
-            accessKey: string;
-            issuedAt: Date;
-            expiresAt: Date | null;
-            lastSeenAt: Date | null;
-        }[];
         scans: {
             id: string;
             status: import(".prisma/client").$Enums.ServerScanStatus;
@@ -44,6 +34,17 @@ export declare class ServerService {
                 id: string;
                 status: import(".prisma/client").$Enums.ServerAgentStatus;
             } | null;
+        }[];
+        hostname: string | null;
+        allowedIp: string | null;
+        isSuspended: boolean;
+        agents: {
+            id: string;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
+            accessKey: string;
+            issuedAt: Date;
+            expiresAt: Date | null;
+            lastSeenAt: Date | null;
         }[];
     }>;
     findAll(user: AuthenticatedUser, organizationId?: string): Promise<{
@@ -61,6 +62,7 @@ export declare class ServerService {
         name: string;
         description: string | null;
         hostname: string | null;
+        allowedIp: string | null;
         isSuspended: boolean;
     }[]>;
     findOne(id: string, user: AuthenticatedUser): Promise<{
@@ -77,16 +79,6 @@ export declare class ServerService {
         updatedAt: Date;
         name: string;
         description: string | null;
-        hostname: string | null;
-        isSuspended: boolean;
-        agents: {
-            id: string;
-            status: import(".prisma/client").$Enums.ServerAgentStatus;
-            accessKey: string;
-            issuedAt: Date;
-            expiresAt: Date | null;
-            lastSeenAt: Date | null;
-        }[];
         scans: {
             id: string;
             status: import(".prisma/client").$Enums.ServerScanStatus;
@@ -101,6 +93,17 @@ export declare class ServerService {
                 id: string;
                 status: import(".prisma/client").$Enums.ServerAgentStatus;
             } | null;
+        }[];
+        hostname: string | null;
+        allowedIp: string | null;
+        isSuspended: boolean;
+        agents: {
+            id: string;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
+            accessKey: string;
+            issuedAt: Date;
+            expiresAt: Date | null;
+            lastSeenAt: Date | null;
         }[];
     }>;
     update(id: string, payload: UpdateServerDto, user: AuthenticatedUser): Promise<{
@@ -117,16 +120,6 @@ export declare class ServerService {
         updatedAt: Date;
         name: string;
         description: string | null;
-        hostname: string | null;
-        isSuspended: boolean;
-        agents: {
-            id: string;
-            status: import(".prisma/client").$Enums.ServerAgentStatus;
-            accessKey: string;
-            issuedAt: Date;
-            expiresAt: Date | null;
-            lastSeenAt: Date | null;
-        }[];
         scans: {
             id: string;
             status: import(".prisma/client").$Enums.ServerScanStatus;
@@ -141,6 +134,17 @@ export declare class ServerService {
                 id: string;
                 status: import(".prisma/client").$Enums.ServerAgentStatus;
             } | null;
+        }[];
+        hostname: string | null;
+        allowedIp: string | null;
+        isSuspended: boolean;
+        agents: {
+            id: string;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
+            accessKey: string;
+            issuedAt: Date;
+            expiresAt: Date | null;
+            lastSeenAt: Date | null;
         }[];
     }>;
     setSuspension(id: string, isSuspended: boolean, user: AuthenticatedUser): Promise<{
@@ -157,16 +161,6 @@ export declare class ServerService {
         updatedAt: Date;
         name: string;
         description: string | null;
-        hostname: string | null;
-        isSuspended: boolean;
-        agents: {
-            id: string;
-            status: import(".prisma/client").$Enums.ServerAgentStatus;
-            accessKey: string;
-            issuedAt: Date;
-            expiresAt: Date | null;
-            lastSeenAt: Date | null;
-        }[];
         scans: {
             id: string;
             status: import(".prisma/client").$Enums.ServerScanStatus;
@@ -181,6 +175,17 @@ export declare class ServerService {
                 id: string;
                 status: import(".prisma/client").$Enums.ServerAgentStatus;
             } | null;
+        }[];
+        hostname: string | null;
+        allowedIp: string | null;
+        isSuspended: boolean;
+        agents: {
+            id: string;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
+            accessKey: string;
+            issuedAt: Date;
+            expiresAt: Date | null;
+            lastSeenAt: Date | null;
         }[];
     }>;
     ensureServerOwnerAccess(serverId: string, user: AuthenticatedUser): Promise<{

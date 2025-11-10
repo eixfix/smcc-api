@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIP, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateServerDto {
   @IsString()
@@ -14,6 +14,11 @@ export class CreateServerDto {
   @IsString()
   @MaxLength(150)
   hostname?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsIP()
+  allowedIp!: string;
 
   @IsOptional()
   @IsString()
