@@ -38,7 +38,7 @@ jobs:
       - name: Package artifact
         run: |
           mkdir -p release
-          cp -r dist package.json package-lock.json node_modules release/
+          cp -r dist package.json package-lock.json node_modules prisma tsconfig.json release/
           tar -C release -czf api-${{ github.sha }}.tgz .
 
       - name: Prepare SSH
