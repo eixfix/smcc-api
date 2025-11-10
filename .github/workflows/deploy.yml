@@ -60,4 +60,4 @@ jobs:
       - name: Health check (local port)
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "curl -sSI http://127.0.0.1:4001/ | head -n1 || true"
+            "curl -sSI http://127.0.0.1:3001/ | head -n1 || true"

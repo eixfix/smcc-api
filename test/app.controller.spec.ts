@@ -16,6 +16,8 @@ describe('AppController', () => {
   });
 
   it('returns ok status', () => {
-    expect(appController.getHealth()).toEqual({ status: 'ok' });
+    const response = appController.getHealth();
+    expect(response.status).toEqual('ok');
+    expect(response.timestamp).toBeDefined();
   });
 });

@@ -17,14 +17,24 @@ let AppController = class AppController {
     constructor(appService) {
         this.appService = appService;
     }
-    getHealth() {
+    getRoot() {
         return this.appService.getStatus();
+    }
+    getHealth() {
+        return this.appService.getDetailedStatus();
     }
 };
 exports.AppController = AppController;
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Get)('/'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Object)
+], AppController.prototype, "getRoot", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('/health'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Object)

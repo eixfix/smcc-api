@@ -9,7 +9,13 @@ export class AppController {
 
   @Public()
   @Get('/')
-  getHealth(): { status: string } {
+  getRoot(): { status: string } {
     return this.appService.getStatus();
+  }
+
+  @Public()
+  @Get('/health')
+  getHealth(): { status: string; timestamp: string } {
+    return this.appService.getDetailedStatus();
   }
 }
