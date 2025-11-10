@@ -1,11 +1,6 @@
--- Add columns to organizations for scan credit tracking
-ALTER TABLE `organizations`
-  ADD COLUMN `lastCreditedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  ADD COLUMN `lastDebitAt` DATETIME(3) NULL,
-  ADD COLUMN `scanSuspendedAt` DATETIME(3) NULL;
 
 -- CreateTable servers
-CREATE TABLE `servers` (
+CREATE TABLE IF NOT EXISTS `servers` (
     `id` VARCHAR(191) NOT NULL,
     `organizationId` VARCHAR(191) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
@@ -17,11 +12,13 @@ CREATE TABLE `servers` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     INDEX `servers_organizationId_name_idx`(`organizationId`, `name`),
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (`id`),
+    CONSTRAINT `servers_organizationId_fkey` FOREIGN KEY (`organizationId`) REFERENCES `organizations`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT `servers_createdById_fkey` FOREIGN KEY (`createdById`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable server_agents
-CREATE TABLE `server_agents` (
+CREATE TABLE IF NOT EXISTS `server_agents` (
     `id` VARCHAR(191) NOT NULL,
     `serverId` VARCHAR(191) NOT NULL,
     `hashedToken` VARCHAR(191) NOT NULL,
@@ -32,11 +29,13 @@ CREATE TABLE `server_agents` (
     `status` ENUM('ACTIVE', 'REVOKED', 'EXPIRED') NOT NULL DEFAULT 'ACTIVE',
 
     INDEX `server_agents_serverId_status_idx`(`serverId`, `status`),
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (`id`),
+    CONSTRAINT `server_agents_serverId_fkey` FOREIGN KEY (`serverId`) REFERENCES `servers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `server_agents_issuedById_fkey` FOREIGN KEY (`issuedById`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable server_scans
-CREATE TABLE `server_scans` (
+CREATE TABLE IF NOT EXISTS `server_scans` (
     `id` VARCHAR(191) NOT NULL,
     `serverId` VARCHAR(191) NOT NULL,
     `agentId` VARCHAR(191) NULL,
@@ -50,11 +49,13 @@ CREATE TABLE `server_scans` (
     `creditsCharged` INT NULL,
 
     INDEX `server_scans_serverId_queuedAt_idx`(`serverId`, `queuedAt`),
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (`id`),
+    CONSTRAINT `server_scans_serverId_fkey` FOREIGN KEY (`serverId`) REFERENCES `servers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `server_scans_agentId_fkey` FOREIGN KEY (`agentId`) REFERENCES `server_agents`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable server_scan_results
-CREATE TABLE `server_scan_results` (
+CREATE TABLE IF NOT EXISTS `server_scan_results` (
     `scanId` VARCHAR(191) NOT NULL,
     `summaryJson` JSON NULL,
     `rawLog` LONGTEXT NULL,
@@ -63,11 +64,12 @@ CREATE TABLE `server_scan_results` (
     `securityFindingsJson` JSON NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-    PRIMARY KEY (`scanId`)
+    PRIMARY KEY (`scanId`),
+    CONSTRAINT `server_scan_results_scanId_fkey` FOREIGN KEY (`scanId`) REFERENCES `server_scans`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable server_telemetry
-CREATE TABLE `server_telemetry` (
+CREATE TABLE IF NOT EXISTS `server_telemetry` (
     `id` VARCHAR(191) NOT NULL,
     `serverId` VARCHAR(191) NOT NULL,
     `agentId` VARCHAR(191) NULL,
@@ -79,20 +81,7 @@ CREATE TABLE `server_telemetry` (
     `collectedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     INDEX `server_telemetry_serverId_collectedAt_idx`(`serverId`, `collectedAt`),
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (`id`),
+    CONSTRAINT `server_telemetry_serverId_fkey` FOREIGN KEY (`serverId`) REFERENCES `servers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `server_telemetry_agentId_fkey` FOREIGN KEY (`agentId`) REFERENCES `server_agents`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- AddForeignKeys
-ALTER TABLE `servers` ADD CONSTRAINT `servers_organizationId_fkey` FOREIGN KEY (`organizationId`) REFERENCES `organizations`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE `servers` ADD CONSTRAINT `servers_createdById_fkey` FOREIGN KEY (`createdById`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
-ALTER TABLE `server_agents` ADD CONSTRAINT `server_agents_serverId_fkey` FOREIGN KEY (`serverId`) REFERENCES `servers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE `server_agents` ADD CONSTRAINT `server_agents_issuedById_fkey` FOREIGN KEY (`issuedById`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
-ALTER TABLE `server_scans` ADD CONSTRAINT `server_scans_serverId_fkey` FOREIGN KEY (`serverId`) REFERENCES `servers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE `server_scans` ADD CONSTRAINT `server_scans_agentId_fkey` FOREIGN KEY (`agentId`) REFERENCES `server_agents`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
-ALTER TABLE `server_scan_results` ADD CONSTRAINT `server_scan_results_scanId_fkey` FOREIGN KEY (`scanId`) REFERENCES `server_scans`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
-ALTER TABLE `server_telemetry` ADD CONSTRAINT `server_telemetry_serverId_fkey` FOREIGN KEY (`serverId`) REFERENCES `servers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE `server_telemetry` ADD CONSTRAINT `server_telemetry_agentId_fkey` FOREIGN KEY (`agentId`) REFERENCES `server_agents`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
