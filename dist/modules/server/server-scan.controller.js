@@ -24,6 +24,7 @@ const report_server_scan_dto_1 = require("./dto/report-server-scan.dto");
 const telemetry_payload_dto_1 = require("./dto/telemetry-payload.dto");
 const agent_session_guard_1 = require("./guards/agent-session.guard");
 const server_scan_service_1 = require("./server-scan.service");
+const agent_envelope_interceptor_1 = require("./interceptors/agent-envelope.interceptor");
 let ServerScanController = class ServerScanController {
     constructor(serverScanService) {
         this.serverScanService = serverScanService;
@@ -67,6 +68,7 @@ __decorate([
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.UseGuards)(agent_session_guard_1.AgentSessionGuard),
+    (0, common_1.UseInterceptors)(agent_envelope_interceptor_1.AgentEnvelopeInterceptor),
     (0, common_1.Post)('agent/scans/next'),
     __param(0, (0, current_agent_decorator_1.CurrentAgent)()),
     __metadata("design:type", Function),
@@ -76,6 +78,7 @@ __decorate([
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.UseGuards)(agent_session_guard_1.AgentSessionGuard),
+    (0, common_1.UseInterceptors)(agent_envelope_interceptor_1.AgentEnvelopeInterceptor),
     (0, common_1.Post)('agent/scans/:scanId/report'),
     __param(0, (0, common_1.Param)('scanId')),
     __param(1, (0, common_1.Body)()),
@@ -87,6 +90,7 @@ __decorate([
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.UseGuards)(agent_session_guard_1.AgentSessionGuard),
+    (0, common_1.UseInterceptors)(agent_envelope_interceptor_1.AgentEnvelopeInterceptor),
     (0, common_1.Post)('agent/telemetry'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_agent_decorator_1.CurrentAgent)()),

@@ -7,6 +7,8 @@ export interface AgentSessionPayload {
     serverId: string;
     organizationId: string;
     type: 'agent-session';
+    envelope?: string;
+    envelopeVersion?: 'v1';
     exp?: number;
     iat?: number;
 }
@@ -22,5 +24,6 @@ export declare class AgentSessionGuard implements CanActivate {
     constructor(jwtService: JwtService, configService: ConfigService, prisma: PrismaService);
     canActivate(context: ExecutionContext): Promise<boolean>;
     private assertAllowedIp;
+    private decryptEnvelopePayload;
 }
 //# sourceMappingURL=agent-session.guard.d.ts.map

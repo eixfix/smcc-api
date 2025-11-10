@@ -19,6 +19,7 @@ const server_scan_controller_1 = require("./server-scan.controller");
 const server_scan_service_1 = require("./server-scan.service");
 const server_service_1 = require("./server.service");
 const server_agent_install_controller_1 = require("./server-agent-install.controller");
+const agent_envelope_interceptor_1 = require("./interceptors/agent-envelope.interceptor");
 let ServerModule = class ServerModule {
 };
 exports.ServerModule = ServerModule;
@@ -44,7 +45,13 @@ exports.ServerModule = ServerModule = __decorate([
             server_scan_controller_1.ServerScanController,
             server_agent_install_controller_1.ServerAgentInstallController
         ],
-        providers: [server_service_1.ServerService, server_agent_service_1.ServerAgentService, server_scan_service_1.ServerScanService, agent_session_guard_1.AgentSessionGuard]
+        providers: [
+            server_service_1.ServerService,
+            server_agent_service_1.ServerAgentService,
+            server_scan_service_1.ServerScanService,
+            agent_session_guard_1.AgentSessionGuard,
+            agent_envelope_interceptor_1.AgentEnvelopeInterceptor
+        ]
     })
 ], ServerModule);
 //# sourceMappingURL=server.module.js.map

@@ -98,6 +98,7 @@ let ServerAgentService = class ServerAgentService {
         });
     }
     async authenticateAgent(dto, clientIp) {
+        var _a;
         const agent = await this.prisma.serverAgent.findFirst({
             where: {
                 serverId: dto.serverId,
@@ -157,11 +158,18 @@ let ServerAgentService = class ServerAgentService {
         if (!isValid) {
             throw new common_1.UnauthorizedException('Invalid agent credentials.');
         }
+        const wantsEnvelope = (_a = dto.capabilities) === null || _a === void 0 ? void 0 : _a.includes('envelope_v1');
+        if (!wantsEnvelope) {
+            throw new common_1.UnauthorizedException('Agents must support envelope_v1.');
+        }
+        const envelopeKey = (0, crypto_1.randomBytes)(32);
         const sessionToken = await this.jwtService.signAsync({
             sub: agent.id,
             serverId: agent.serverId,
             organizationId: agent.server.organizationId,
-            type: 'agent-session'
+            type: 'agent-session',
+            envelope: envelopeKey.toString('base64'),
+            envelopeVersion: 'v1'
         });
         const now = new Date();
         await this.prisma.serverAgent.update({
@@ -173,6 +181,10 @@ let ServerAgentService = class ServerAgentService {
         return {
             sessionToken,
             expiresInSeconds: AGENT_SESSION_TTL_SECONDS,
+            envelope: {
+                version: 'v1',
+                key: envelopeKey.toString('base64')
+            },
             agent: {
                 id: agent.id,
                 serverId: agent.serverId,

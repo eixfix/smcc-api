@@ -28,4 +28,10 @@ __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], AgentAuthDto.prototype, "secret", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsString)({ each: true }),
+    __metadata("design:type", Array)
+], AgentAuthDto.prototype, "capabilities", void 0);
 //# sourceMappingURL=agent-auth.dto.js.map

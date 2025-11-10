@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards, UseInterceptors } from '@nestjs/common';
 import { Role } from '@prisma/client';
 
 import { Public } from '../../common/decorators/public.decorator';
@@ -12,6 +12,7 @@ import { TelemetryPayloadDto } from './dto/telemetry-payload.dto';
 import type { AgentSessionContext } from './guards/agent-session.guard';
 import { AgentSessionGuard } from './guards/agent-session.guard';
 import { ServerScanService } from './server-scan.service';
+import { AgentEnvelopeInterceptor } from './interceptors/agent-envelope.interceptor';
 
 @Controller()
 export class ServerScanController {
@@ -38,6 +39,7 @@ export class ServerScanController {
 
   @Public()
   @UseGuards(AgentSessionGuard)
+  @UseInterceptors(AgentEnvelopeInterceptor)
   @Post('agent/scans/next')
   fetchNext(@CurrentAgent() agent: AgentSessionContext) {
     return this.serverScanService.getNextQueuedScan(agent);
@@ -45,6 +47,7 @@ export class ServerScanController {
 
   @Public()
   @UseGuards(AgentSessionGuard)
+  @UseInterceptors(AgentEnvelopeInterceptor)
   @Post('agent/scans/:scanId/report')
   submitReport(
     @Param('scanId') scanId: string,
@@ -56,6 +59,7 @@ export class ServerScanController {
 
   @Public()
   @UseGuards(AgentSessionGuard)
+  @UseInterceptors(AgentEnvelopeInterceptor)
   @Post('agent/telemetry')
   ingestTelemetry(
     @Body() payload: TelemetryPayloadDto,

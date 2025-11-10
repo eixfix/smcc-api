@@ -181,11 +181,21 @@ export class ServerAgentService {
       throw new UnauthorizedException('Invalid agent credentials.');
     }
 
+    const wantsEnvelope = dto.capabilities?.includes('envelope_v1');
+
+    if (!wantsEnvelope) {
+      throw new UnauthorizedException('Agents must support envelope_v1.');
+    }
+
+    const envelopeKey = randomBytes(32);
+
     const sessionToken = await this.jwtService.signAsync({
       sub: agent.id,
       serverId: agent.serverId,
       organizationId: agent.server.organizationId,
-      type: 'agent-session'
+      type: 'agent-session',
+      envelope: envelopeKey.toString('base64'),
+      envelopeVersion: 'v1'
     });
 
     const now = new Date();
@@ -200,6 +210,10 @@ export class ServerAgentService {
     return {
       sessionToken,
       expiresInSeconds: AGENT_SESSION_TTL_SECONDS,
+      envelope: {
+        version: 'v1',
+        key: envelopeKey.toString('base64')
+      },
       agent: {
         id: agent.id,
         serverId: agent.serverId,

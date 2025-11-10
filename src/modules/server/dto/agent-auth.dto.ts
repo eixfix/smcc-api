@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class AgentAuthDto {
   @IsUUID()
@@ -11,4 +11,9 @@ export class AgentAuthDto {
   @IsString()
   @IsNotEmpty()
   secret!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  capabilities?: string[];
 }

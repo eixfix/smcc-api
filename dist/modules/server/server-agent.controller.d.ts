@@ -9,11 +9,11 @@ export declare class ServerAgentController {
     createAgent(serverId: string, payload: CreateServerAgentDto, user: AuthenticatedUser): Promise<{
         agent: {
             id: string;
-            status: import(".prisma/client").$Enums.ServerAgentStatus;
             serverId: string;
             accessKey: string;
             issuedAt: Date;
             expiresAt: Date | null;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
         };
         credentials: {
             accessKey: string;
@@ -22,12 +22,16 @@ export declare class ServerAgentController {
     }>;
     revokeAgent(agentId: string, user: AuthenticatedUser): Promise<{
         id: string;
-        status: import(".prisma/client").$Enums.ServerAgentStatus;
         lastSeenAt: Date | null;
+        status: import(".prisma/client").$Enums.ServerAgentStatus;
     }>;
     authenticate(payload: AgentAuthDto, request: Request): Promise<{
         sessionToken: string;
         expiresInSeconds: number;
+        envelope: {
+            version: string;
+            key: string;
+        };
         agent: {
             id: string;
             serverId: string;

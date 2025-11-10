@@ -13,6 +13,7 @@ exports.AgentSessionGuard = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const jwt_1 = require("@nestjs/jwt");
+const node_crypto_1 = require("node:crypto");
 const prisma_service_1 = require("../../../prisma/prisma.service");
 const ip_utils_1 = require("../../../common/utils/ip.utils");
 let AgentSessionGuard = class AgentSessionGuard {
@@ -42,6 +43,19 @@ let AgentSessionGuard = class AgentSessionGuard {
             }
             const clientIp = (0, ip_utils_1.extractClientIp)(request);
             await this.assertAllowedIp(payload.sub, payload.serverId, clientIp);
+            const envelopeHeader = request.headers['x-agent-envelope'];
+            const wantsEnvelope = typeof envelopeHeader === 'string' && envelopeHeader.toLowerCase() === 'v1';
+            if (!wantsEnvelope) {
+                throw new common_1.UnauthorizedException('Agent payloads must be encrypted.');
+            }
+            if (!payload.envelope || payload.envelopeVersion !== 'v1') {
+                throw new common_1.UnauthorizedException('Agent session missing envelope key.');
+            }
+            const envelopeKey = Buffer.from(payload.envelope, 'base64');
+            request.agentEnvelope = { version: 'v1', key: envelopeKey };
+            if (request.body && Object.keys(request.body).length > 0) {
+                request.body = this.decryptEnvelopePayload(envelopeKey, request.body);
+            }
             request.agent = {
                 agentId: payload.sub,
                 serverId: payload.serverId,
@@ -75,6 +89,26 @@ let AgentSessionGuard = class AgentSessionGuard {
         const normalizedClientIp = (0, ip_utils_1.normalizeIp)(clientIp);
         if (!normalizedClientIp || normalizedClientIp !== allowedIp) {
             throw new common_1.UnauthorizedException('Agent IP is not authorized for this server.');
+        }
+    }
+    decryptEnvelopePayload(key, payload) {
+        if (!payload ||
+            typeof payload.ciphertext !== 'string' ||
+            typeof payload.iv !== 'string' ||
+            typeof payload.tag !== 'string') {
+            throw new common_1.BadRequestException('Malformed encrypted payload.');
+        }
+        try {
+            const decipher = (0, node_crypto_1.createDecipheriv)('aes-256-gcm', key, Buffer.from(payload.iv, 'base64'));
+            decipher.setAuthTag(Buffer.from(payload.tag, 'base64'));
+            const plaintext = Buffer.concat([
+                decipher.update(Buffer.from(payload.ciphertext, 'base64')),
+                decipher.final()
+            ]).toString('utf8');
+            return plaintext.length > 0 ? JSON.parse(plaintext) : {};
+        }
+        catch (error) {
+            throw new common_1.BadRequestException('Unable to decrypt agent payload.');
         }
     }
 };

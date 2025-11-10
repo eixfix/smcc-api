@@ -14,6 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import type { Request } from 'express';
+import { randomBytes } from 'node:crypto';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -22,9 +23,7 @@ import type { AuthenticatedUser } from '../../common/types/auth-user';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ServerService } from './server.service';
 import { extractClientIp, normalizeIp } from '../../common/utils/ip.utils';
-import { CurrentAgent } from './decorators/current-agent.decorator';
-import { AgentSessionGuard } from './guards/agent-session.guard';
-import type { AgentSessionContext } from './guards/agent-session.guard';
+import { buildAgentBootstrapTemplate } from './templates/agent-bootstrap.template';
 
 @Controller()
 export class ServerAgentInstallController {
@@ -49,10 +48,13 @@ export class ServerAgentInstallController {
       this.configService.get<string>('AGENT_INSTALL_TOKEN_SECRET') ||
       this.configService.get<string>('JWT_SECRET');
 
+    const nonce = randomBytes(16).toString('base64url');
+
     const token = await this.jwtService.signAsync(
       {
         type: 'install-script',
-        serverId
+        serverId,
+        nonce
       },
       {
         secret,
@@ -69,7 +71,8 @@ export class ServerAgentInstallController {
     return {
       installUrl,
       command: `curl -fsSL ${installUrl} | sudo bash`,
-      expiresInMinutes: ttlMinutes
+      expiresInMinutes: ttlMinutes,
+      nonce
     };
   }
 
@@ -81,7 +84,7 @@ export class ServerAgentInstallController {
       this.configService.get<string>('AGENT_INSTALL_TOKEN_SECRET') ||
       this.configService.get<string>('JWT_SECRET');
 
-    let payload: { type: string; serverId: string };
+    let payload: { type: string; serverId: string; nonce?: string };
 
     try {
       payload = await this.jwtService.verifyAsync(token, { secret });
@@ -127,17 +130,27 @@ export class ServerAgentInstallController {
     const defaultUpdateIntervalMinutes =
       Number(this.configService.get<string>('AGENT_DEFAULT_UPDATE_INTERVAL_MINUTES')) || 60;
 
+    const metadataPath =
+      this.configService.get<string>('AGENT_METADATA_PATH') ?? `${configPath}.meta.json`;
+    const derivedKey = randomBytes(32).toString('base64');
+    const installNonce = payload.nonce ?? randomBytes(12).toString('base64url');
+
     const serviceUnitPath = `/etc/systemd/system/${serviceName}.service`;
     const installDirEscaped = installDir.replace(/"/g, '\\"');
     const binPathEscaped = binPath.replace(/"/g, '\\"');
     const configPathEscaped = configPath.replace(/"/g, '\\"');
-    const agentScript = this.buildAgentSource(
-      apiPublicUrl,
+    const metadataPathEscaped = metadataPath.replace(/"/g, '\\"');
+
+    const agentScript = buildAgentBootstrapTemplate({
+      apiUrl: apiPublicUrl,
       configPath,
+      metadataPath,
+      binaryPath: binPath,
       agentVersion,
       defaultUpdateIntervalMinutes,
-      binPath
-    );
+      derivedKey,
+      installNonce
+    });
 
     return `#!/usr/bin/env bash
 set -euo pipefail
@@ -146,6 +159,7 @@ echo "[loadtest] Installing agent files..."
 INSTALL_DIR="${installDirEscaped}"
 BIN_PATH="${binPathEscaped}"
 CONFIG_PATH="${configPathEscaped}"
+METADATA_PATH="${metadataPathEscaped}"
 SERVICE_NAME="${serviceName}"
 SERVICE_PATH="${serviceUnitPath}"
 
@@ -157,19 +171,72 @@ LOADTEST_AGENT_SOURCE
 
 install -m 755 "$INSTALL_DIR/loadtest-agent.js" "$BIN_PATH"
 install -d -m 755 "$(dirname "$CONFIG_PATH")"
-if [ ! -f "$CONFIG_PATH" ]; then
-  cat <<'EOF' > "$CONFIG_PATH"
-server_id: "${server.id}"
-agent_access_key: "<access-key>"
-agent_secret: "<secret>"
-api_url: "${apiPublicUrl}"
-poll_interval_seconds: 30
-telemetry_interval_minutes: 60
-update_interval_minutes: ${defaultUpdateIntervalMinutes}
-log_level: info
-EOF
-  chmod 600 "$CONFIG_PATH"
-fi
+install -d -m 755 "$(dirname "$METADATA_PATH")"
+
+LT_AGENT_CONFIG_PATH="$CONFIG_PATH" \
+LT_AGENT_METADATA_PATH="$METADATA_PATH" \
+LT_AGENT_DERIVED_KEY="${derivedKey}" \
+LT_AGENT_INSTALL_NONCE="${installNonce}" \
+LT_AGENT_VERSION="${agentVersion}" \
+LT_AGENT_SERVER_ID="${server.id}" \
+LT_AGENT_API_URL="${apiPublicUrl}" \
+LT_AGENT_POLL_INTERVAL="30" \
+LT_AGENT_TELEMETRY_INTERVAL="60" \
+LT_AGENT_UPDATE_INTERVAL="${defaultUpdateIntervalMinutes}" \
+node <<'LOADTEST_ENCRYPT_CONFIG'
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+
+const configPath = process.env.LT_AGENT_CONFIG_PATH;
+const metadataPath = process.env.LT_AGENT_METADATA_PATH;
+const derivedKeyB64 = process.env.LT_AGENT_DERIVED_KEY;
+const installNonce = process.env.LT_AGENT_INSTALL_NONCE || '';
+const agentVersion = process.env.LT_AGENT_VERSION || 'unknown';
+
+const derivedKey = Buffer.from(derivedKeyB64, 'base64');
+
+const metadata = {
+  install_nonce: installNonce,
+  derived_key: derivedKeyB64,
+  generated_at: new Date().toISOString(),
+  script_version: agentVersion
+};
+
+fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), { mode: 0o600 });
+
+function encrypt(key, buffer) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(buffer), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return {
+    algorithm: 'aes-256-gcm',
+    iv: iv.toString('base64'),
+    tag: tag.toString('base64'),
+    data: ciphertext.toString('base64')
+  };
+}
+
+const dataKey = crypto.randomBytes(32);
+const configPayload = {
+  serverId: process.env.LT_AGENT_SERVER_ID,
+  accessKey: '<access-key>',
+  secret: '<secret>',
+  apiUrl: process.env.LT_AGENT_API_URL,
+  pollIntervalSeconds: Number(process.env.LT_AGENT_POLL_INTERVAL || '30'),
+  telemetryIntervalMinutes: Number(process.env.LT_AGENT_TELEMETRY_INTERVAL || '60'),
+  updateIntervalMinutes: Number(process.env.LT_AGENT_UPDATE_INTERVAL || '60'),
+  logLevel: 'info'
+};
+
+const document = {
+  version: 2,
+  encryptedConfig: encrypt(dataKey, Buffer.from(JSON.stringify(configPayload), 'utf8')),
+  wrappedKey: encrypt(derivedKey, dataKey)
+};
+
+fs.writeFileSync(configPath, JSON.stringify(document, null, 2), { mode: 0o600 });
+LOADTEST_ENCRYPT_CONFIG
 
 cat <<EOF > "$SERVICE_PATH"
 [Unit]
@@ -193,34 +260,7 @@ echo "[loadtest] Agent installed. Update $CONFIG_PATH with real credentials befo
 `;
   }
 
-  @Public()
-  @UseGuards(AgentSessionGuard)
-  @Get('agent/script')
-  getAgentScript(@CurrentAgent() _agent: AgentSessionContext) {
-    const apiPublicUrl =
-      this.configService.get<string>('API_PUBLIC_URL') ?? 'https://api.loadtest.dev';
-    const configPath =
-      this.configService.get<string>('AGENT_CONFIG_PATH') ?? '/etc/loadtest-agent/config.yaml';
-    const agentVersion =
-      this.configService.get<string>('AGENT_SCRIPT_VERSION') ?? '1.0.0';
-    const defaultUpdateIntervalMinutes =
-      Number(this.configService.get<string>('AGENT_DEFAULT_UPDATE_INTERVAL_MINUTES')) || 60;
-    const binPath =
-      this.configService.get<string>('AGENT_BINARY_PATH') ?? '/usr/local/bin/loadtest-agent';
-
-    return {
-      version: agentVersion,
-      source: this.buildAgentSource(
-        apiPublicUrl,
-        configPath,
-        agentVersion,
-        defaultUpdateIntervalMinutes,
-        binPath
-      )
-    };
-  }
-
-  private buildAgentSource(
+    private buildAgentSource(
     apiUrl: string,
     configPath: string,
     agentVersion: string,

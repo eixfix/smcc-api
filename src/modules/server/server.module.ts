@@ -11,6 +11,7 @@ import { ServerScanController } from './server-scan.controller';
 import { ServerScanService } from './server-scan.service';
 import { ServerService } from './server.service';
 import { ServerAgentInstallController } from './server-agent-install.controller';
+import { AgentEnvelopeInterceptor } from './interceptors/agent-envelope.interceptor';
 
 @Module({
   imports: [
@@ -33,6 +34,12 @@ import { ServerAgentInstallController } from './server-agent-install.controller'
     ServerScanController,
     ServerAgentInstallController
   ],
-  providers: [ServerService, ServerAgentService, ServerScanService, AgentSessionGuard]
+  providers: [
+    ServerService,
+    ServerAgentService,
+    ServerScanService,
+    AgentSessionGuard,
+    AgentEnvelopeInterceptor
+  ]
 })
 export class ServerModule {}
