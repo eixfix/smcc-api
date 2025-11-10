@@ -10,7 +10,7 @@ function buildAgentBootstrapTemplate({ apiUrl, configPath, metadataPath, binaryP
     const escapedDerivedKey = sanitizeLiteral(derivedKey);
     const escapedInstallNonce = sanitizeLiteral(installNonce);
     const escapedLogPrefix = sanitizeLiteral(logPrefix || 'loadtest-agent');
-    return `#!/usr/bin/env node
+    const script = `#!/usr/bin/env node
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -448,5 +448,8 @@ main().catch((error) => {
   process.exit(1);
 });
 `;
+    return script
+        .replace(`const LOG_PREFIX = '${escapedLogPrefix}';\n`, '')
+        .replace(/\[\\\$\{LOG_PREFIX\}\]/g, `[${escapedLogPrefix}]`);
 }
 //# sourceMappingURL=agent-bootstrap.template.js.map
