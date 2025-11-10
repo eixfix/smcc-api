@@ -13,6 +13,14 @@ import { normalizeIp } from '../../common/utils/ip.utils';
 import { CreateServerDto } from './dto/create-server.dto';
 import { UpdateServerDto } from './dto/update-server.dto';
 
+const TELEMETRY_SELECT = {
+  id: true,
+  collectedAt: true,
+  cpuPercent: true,
+  memoryPercent: true,
+  diskPercent: true
+} as const;
+
 const SERVER_SUMMARY_SELECT = {
   id: true,
   name: true,
@@ -31,11 +39,21 @@ const SERVER_SUMMARY_SELECT = {
       lastDebitAt: true,
       scanSuspendedAt: true
     }
+  },
+  telemetry: {
+    orderBy: { collectedAt: 'desc' },
+    take: 1,
+    select: TELEMETRY_SELECT
   }
 } as const;
 
 const SERVER_DETAIL_SELECT = {
   ...SERVER_SUMMARY_SELECT,
+  telemetry: {
+    orderBy: { collectedAt: 'desc' },
+    take: 25,
+    select: TELEMETRY_SELECT
+  },
   agents: {
     orderBy: { issuedAt: 'desc' },
     select: {
@@ -97,6 +115,7 @@ export class ServerService {
 
   async findAll(user: AuthenticatedUser, organizationId?: string) {
     const where: Prisma.ServerWhereInput = {};
+    let membershipRoles: Map<string, Role> | undefined;
 
     if (user.role === Role.ADMINISTRATOR) {
       if (organizationId) {
@@ -112,12 +131,14 @@ export class ServerService {
         where.organizationId = organizationId;
       }
     } else {
-      const accessibleOrganizationIds = await this.listUserOrganizationIds(user.userId);
+      membershipRoles = await this.getUserMembershipRoleMap(user.userId);
 
       if (organizationId) {
         await this.ensureOrganizationReadAccess(organizationId, user);
         where.organizationId = organizationId;
       } else {
+        const accessibleOrganizationIds = Array.from(membershipRoles.keys());
+
         if (accessibleOrganizationIds.length === 0) {
           return [];
         }
@@ -128,10 +149,22 @@ export class ServerService {
       }
     }
 
-    return this.prisma.server.findMany({
+    const servers = await this.prisma.server.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       select: SERVER_SUMMARY_SELECT
+    });
+
+    if (user.role === Role.ADMINISTRATOR) {
+      return servers;
+    }
+
+    return servers.map((server) => {
+      if (this.userCanViewTelemetry(user, server.organization.id, membershipRoles)) {
+        return server;
+      }
+
+      return this.stripTelemetry(server);
     });
   }
 
@@ -147,7 +180,17 @@ export class ServerService {
 
     await this.ensureOrganizationReadAccess(server.organization.id, user);
 
-    return server;
+    if (user.role === Role.ADMINISTRATOR) {
+      return server;
+    }
+
+    const membershipRole = await this.getUserOrganizationRole(server.organization.id, user.userId);
+
+    if (membershipRole === Role.OWNER) {
+      return server;
+    }
+
+    return this.stripTelemetry(server);
   }
 
   async update(id: string, payload: UpdateServerDto, user: AuthenticatedUser) {
@@ -205,6 +248,19 @@ export class ServerService {
         isSuspended
       },
       select: SERVER_DETAIL_SELECT
+    });
+  }
+
+  async listTelemetry(serverId: string, user: AuthenticatedUser, limit?: number) {
+    await this.ensureServerOwnerAccess(serverId, user);
+
+    const take = Math.min(Math.max(limit ?? 25, 1), 100);
+
+    return this.prisma.serverTelemetry.findMany({
+      where: { serverId },
+      orderBy: { collectedAt: 'desc' },
+      take,
+      select: TELEMETRY_SELECT
     });
   }
 
@@ -292,12 +348,50 @@ export class ServerService {
     }
   }
 
-  private async listUserOrganizationIds(userId: string): Promise<string[]> {
+  private userCanViewTelemetry(
+    user: AuthenticatedUser,
+    organizationId: string,
+    membershipRoles?: Map<string, Role>
+  ): boolean {
+    if (user.role === Role.ADMINISTRATOR) {
+      return true;
+    }
+
+    if (!membershipRoles) {
+      return false;
+    }
+
+    return membershipRoles.get(organizationId) === Role.OWNER;
+  }
+
+  private stripTelemetry<T extends { telemetry: Array<unknown> }>(record: T): T {
+    return {
+      ...record,
+      telemetry: [] as typeof record.telemetry
+    };
+  }
+
+  private async getUserMembershipRoleMap(userId: string): Promise<Map<string, Role>> {
     const memberships = await this.prisma.organizationMember.findMany({
       where: { userId },
-      select: { organizationId: true }
+      select: { organizationId: true, role: true }
     });
 
-    return memberships.map((membership) => membership.organizationId);
+    return new Map(memberships.map((membership) => [membership.organizationId, membership.role]));
+  }
+
+  private async getUserOrganizationRole(
+    organizationId: string,
+    userId: string
+  ): Promise<Role | null> {
+    const membership = await this.prisma.organizationMember.findFirst({
+      where: {
+        organizationId,
+        userId
+      },
+      select: { role: true }
+    });
+
+    return membership?.role ?? null;
   }
 }

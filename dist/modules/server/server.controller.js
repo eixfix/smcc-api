@@ -42,6 +42,11 @@ let ServerController = class ServerController {
     unsuspend(id, user) {
         return this.serverService.setSuspension(id, false, user);
     }
+    listTelemetry(id, user, limit) {
+        const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
+        const sanitizedLimit = parsedLimit !== undefined && !Number.isNaN(parsedLimit) ? parsedLimit : undefined;
+        return this.serverService.listTelemetry(id, user, sanitizedLimit);
+    }
 };
 exports.ServerController = ServerController;
 __decorate([
@@ -97,6 +102,15 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], ServerController.prototype, "unsuspend", null);
+__decorate([
+    (0, common_1.Get)(':id/telemetry'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __param(2, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, String]),
+    __metadata("design:returntype", void 0)
+], ServerController.prototype, "listTelemetry", null);
 exports.ServerController = ServerController = __decorate([
     (0, common_1.Controller)('servers'),
     __metadata("design:paramtypes", [server_service_1.ServerService])

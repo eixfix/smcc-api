@@ -14,6 +14,13 @@ const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const ip_utils_1 = require("../../common/utils/ip.utils");
+const TELEMETRY_SELECT = {
+    id: true,
+    collectedAt: true,
+    cpuPercent: true,
+    memoryPercent: true,
+    diskPercent: true
+};
 const SERVER_SUMMARY_SELECT = {
     id: true,
     name: true,
@@ -32,10 +39,20 @@ const SERVER_SUMMARY_SELECT = {
             lastDebitAt: true,
             scanSuspendedAt: true
         }
+    },
+    telemetry: {
+        orderBy: { collectedAt: 'desc' },
+        take: 1,
+        select: TELEMETRY_SELECT
     }
 };
 const SERVER_DETAIL_SELECT = {
     ...SERVER_SUMMARY_SELECT,
+    telemetry: {
+        orderBy: { collectedAt: 'desc' },
+        take: 25,
+        select: TELEMETRY_SELECT
+    },
     agents: {
         orderBy: { issuedAt: 'desc' },
         select: {
@@ -93,6 +110,7 @@ let ServerService = class ServerService {
     }
     async findAll(user, organizationId) {
         const where = {};
+        let membershipRoles;
         if (user.role === client_1.Role.ADMINISTRATOR) {
             if (organizationId) {
                 const exists = await this.prisma.organization.findUnique({
@@ -106,12 +124,13 @@ let ServerService = class ServerService {
             }
         }
         else {
-            const accessibleOrganizationIds = await this.listUserOrganizationIds(user.userId);
+            membershipRoles = await this.getUserMembershipRoleMap(user.userId);
             if (organizationId) {
                 await this.ensureOrganizationReadAccess(organizationId, user);
                 where.organizationId = organizationId;
             }
             else {
+                const accessibleOrganizationIds = Array.from(membershipRoles.keys());
                 if (accessibleOrganizationIds.length === 0) {
                     return [];
                 }
@@ -120,10 +139,19 @@ let ServerService = class ServerService {
                 };
             }
         }
-        return this.prisma.server.findMany({
+        const servers = await this.prisma.server.findMany({
             where,
             orderBy: { createdAt: 'desc' },
             select: SERVER_SUMMARY_SELECT
+        });
+        if (user.role === client_1.Role.ADMINISTRATOR) {
+            return servers;
+        }
+        return servers.map((server) => {
+            if (this.userCanViewTelemetry(user, server.organization.id, membershipRoles)) {
+                return server;
+            }
+            return this.stripTelemetry(server);
         });
     }
     async findOne(id, user) {
@@ -135,7 +163,14 @@ let ServerService = class ServerService {
             throw new common_1.NotFoundException('Server not found.');
         }
         await this.ensureOrganizationReadAccess(server.organization.id, user);
-        return server;
+        if (user.role === client_1.Role.ADMINISTRATOR) {
+            return server;
+        }
+        const membershipRole = await this.getUserOrganizationRole(server.organization.id, user.userId);
+        if (membershipRole === client_1.Role.OWNER) {
+            return server;
+        }
+        return this.stripTelemetry(server);
     }
     async update(id, payload, user) {
         const summary = await this.prisma.server.findUnique({
@@ -182,6 +217,16 @@ let ServerService = class ServerService {
                 isSuspended
             },
             select: SERVER_DETAIL_SELECT
+        });
+    }
+    async listTelemetry(serverId, user, limit) {
+        await this.ensureServerOwnerAccess(serverId, user);
+        const take = Math.min(Math.max(limit !== null && limit !== void 0 ? limit : 25, 1), 100);
+        return this.prisma.serverTelemetry.findMany({
+            where: { serverId },
+            orderBy: { collectedAt: 'desc' },
+            take,
+            select: TELEMETRY_SELECT
         });
     }
     async ensureServerOwnerAccess(serverId, user) {
@@ -242,12 +287,38 @@ let ServerService = class ServerService {
             throw new common_1.ForbiddenException('Owner privileges are required for this action.');
         }
     }
-    async listUserOrganizationIds(userId) {
+    userCanViewTelemetry(user, organizationId, membershipRoles) {
+        if (user.role === client_1.Role.ADMINISTRATOR) {
+            return true;
+        }
+        if (!membershipRoles) {
+            return false;
+        }
+        return membershipRoles.get(organizationId) === client_1.Role.OWNER;
+    }
+    stripTelemetry(record) {
+        return {
+            ...record,
+            telemetry: []
+        };
+    }
+    async getUserMembershipRoleMap(userId) {
         const memberships = await this.prisma.organizationMember.findMany({
             where: { userId },
-            select: { organizationId: true }
+            select: { organizationId: true, role: true }
         });
-        return memberships.map((membership) => membership.organizationId);
+        return new Map(memberships.map((membership) => [membership.organizationId, membership.role]));
+    }
+    async getUserOrganizationRole(organizationId, userId) {
+        var _a;
+        const membership = await this.prisma.organizationMember.findFirst({
+            where: {
+                organizationId,
+                userId
+            },
+            select: { role: true }
+        });
+        return (_a = membership === null || membership === void 0 ? void 0 : membership.role) !== null && _a !== void 0 ? _a : null;
     }
 };
 exports.ServerService = ServerService;

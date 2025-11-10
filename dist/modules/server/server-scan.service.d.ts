@@ -15,6 +15,7 @@ export declare class ServerScanService {
     private readonly serverAgentService;
     constructor(prisma: PrismaService, creditService: OrganizationCreditService, serverService: ServerService, serverAgentService: ServerAgentService);
     queueScan(serverId: string, dto: QueueServerScanDto, user: AuthenticatedUser): Promise<{
+        id: string;
         result: {
             createdAt: Date;
             summaryJson: Prisma.JsonValue;
@@ -23,7 +24,6 @@ export declare class ServerScanService {
             memoryMetricsJson: Prisma.JsonValue;
             securityFindingsJson: Prisma.JsonValue;
         } | null;
-        id: string;
         serverId: string;
         status: import(".prisma/client").$Enums.ServerScanStatus;
         agentId: string | null;
@@ -41,6 +41,7 @@ export declare class ServerScanService {
         } | null;
     }>;
     listScans(serverId: string, user: AuthenticatedUser): Promise<{
+        id: string;
         result: {
             createdAt: Date;
             summaryJson: Prisma.JsonValue;
@@ -49,7 +50,6 @@ export declare class ServerScanService {
             memoryMetricsJson: Prisma.JsonValue;
             securityFindingsJson: Prisma.JsonValue;
         } | null;
-        id: string;
         serverId: string;
         status: import(".prisma/client").$Enums.ServerScanStatus;
         agentId: string | null;

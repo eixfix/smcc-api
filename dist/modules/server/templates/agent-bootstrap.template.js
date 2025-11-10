@@ -335,14 +335,22 @@ async function sendTelemetry(apiBaseUrl, token, config) {
     'Content-Type': 'application/json'
   };
 
+  const cpuPercent = calculateCpuPercent();
+  const memoryPercent = calculateMemoryPercent();
+  const diskPercent = calculateDiskPercent();
+
   let payload = {
-    serverId: config.serverId,
-    hostname: os.hostname(),
-    platform: os.platform(),
-    uptimeSeconds: Math.round(os.uptime()),
-    loadAverage: os.loadavg(),
-    freeMemBytes: os.freemem(),
-    totalMemBytes: os.totalmem()
+    cpuPercent,
+    memoryPercent,
+    diskPercent,
+    raw: {
+      hostname: os.hostname(),
+      platform: os.platform(),
+      uptimeSeconds: Math.round(os.uptime()),
+      loadAverage: os.loadavg(),
+      freeMemBytes: os.freemem(),
+      totalMemBytes: os.totalmem()
+    }
   };
 
   if (sessionEnvelope && sessionEnvelope.key) {
@@ -357,29 +365,70 @@ async function sendTelemetry(apiBaseUrl, token, config) {
   });
 }
 
-function encryptEnvelopePayload(key, payload) {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const ciphertext = Buffer.concat([
-    cipher.update(Buffer.from(JSON.stringify(payload), 'utf8')),
-    cipher.final()
-  ]);
-  const tag = cipher.getAuthTag();
-  return {
-    ciphertext: ciphertext.toString('base64'),
-    iv: iv.toString('base64'),
-    tag: tag.toString('base64')
-  };
+
+function calculateCpuPercent() {
+  try {
+    const start = os.cpus();
+    const delayMs = 100;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
+    const end = os.cpus();
+
+    let idleDiff = 0;
+    let totalDiff = 0;
+
+    for (let i = 0; i < end.length; i++) {
+      const startTimes = start[i].times;
+      const endTimes = end[i].times;
+      const startTotal =
+        startTimes.user + startTimes.nice + startTimes.sys + startTimes.idle + startTimes.irq;
+      const endTotal =
+        endTimes.user + endTimes.nice + endTimes.sys + endTimes.idle + endTimes.irq;
+
+      idleDiff += endTimes.idle - startTimes.idle;
+      totalDiff += endTotal - startTotal;
+    }
+
+    if (totalDiff === 0) {
+      return null;
+    }
+
+    const usage = ((totalDiff - idleDiff) / totalDiff) * 100;
+    return Number(usage.toFixed(2));
+  } catch {
+    return null;
+  }
 }
 
-function decryptEnvelopePayload(key, payload) {
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(payload.iv, 'base64'));
-  decipher.setAuthTag(Buffer.from(payload.tag, 'base64'));
-  const plaintext = Buffer.concat([
-    decipher.update(Buffer.from(payload.ciphertext, 'base64')),
-    decipher.final()
-  ]).toString('utf8');
-  return JSON.parse(plaintext);
+function calculateMemoryPercent() {
+  try {
+    const total = os.totalmem();
+    const free = os.freemem();
+    if (total === 0) {
+      return null;
+    }
+    const used = total - free;
+    return Number(((used / total) * 100).toFixed(2));
+  } catch {
+    return null;
+  }
+}
+
+function calculateDiskPercent() {
+  try {
+    const stat = fs.statSync('/');
+    if (!stat || !stat.blocks || !stat.blksize) {
+      return null;
+    }
+    const total = stat.blocks * stat.blksize;
+    const free = stat.blocks * stat.blksize;
+    if (total === 0) {
+      return null;
+    }
+    const used = total - free;
+    return Number(((used / total) * 100).toFixed(2));
+  } catch {
+    return null;
+  }
 }
 
 async function main() {

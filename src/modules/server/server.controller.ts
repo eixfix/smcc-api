@@ -52,4 +52,17 @@ export class ServerController {
   unsuspend(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.serverService.setSuspension(id, false, user);
   }
+
+  @Get(':id/telemetry')
+  listTelemetry(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('limit') limit?: string
+  ) {
+    const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
+    const sanitizedLimit =
+      parsedLimit !== undefined && !Number.isNaN(parsedLimit) ? parsedLimit : undefined;
+
+    return this.serverService.listTelemetry(id, user, sanitizedLimit);
+  }
 }
