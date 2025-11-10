@@ -8,26 +8,92 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ServerAgentInstallController = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const jwt_1 = require("@nestjs/jwt");
+const client_1 = require("@prisma/client");
 const public_decorator_1 = require("../../common/decorators/public.decorator");
+const roles_decorator_1 = require("../../common/decorators/roles.decorator");
+const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
+const prisma_service_1 = require("../../prisma/prisma.service");
+const server_service_1 = require("./server.service");
+const ip_utils_1 = require("../../common/utils/ip.utils");
+const current_agent_decorator_1 = require("./decorators/current-agent.decorator");
+const agent_session_guard_1 = require("./guards/agent-session.guard");
 let ServerAgentInstallController = class ServerAgentInstallController {
-    constructor(configService) {
+    constructor(configService, jwtService, prisma, serverService) {
         this.configService = configService;
+        this.jwtService = jwtService;
+        this.prisma = prisma;
+        this.serverService = serverService;
     }
-    getInstallScript() {
+    async createInstallLink(serverId, user) {
+        var _a;
+        await this.serverService.ensureServerOwnerAccess(serverId, user);
+        const ttlMinutes = Number(this.configService.get('AGENT_INSTALL_TOKEN_TTL_MINUTES')) || 60;
+        const secret = this.configService.get('AGENT_INSTALL_TOKEN_SECRET') ||
+            this.configService.get('JWT_SECRET');
+        const token = await this.jwtService.signAsync({
+            type: 'install-script',
+            serverId
+        }, {
+            secret,
+            expiresIn: `${ttlMinutes}m`
+        });
+        const publicUrl = ((_a = this.configService.get('API_PUBLIC_URL')) !== null && _a !== void 0 ? _a : '').replace(/\/$/, '');
+        const installUrl = `${publicUrl}/agents/install.sh/${token}`;
+        return {
+            installUrl,
+            command: `curl -fsSL ${installUrl} | sudo bash`,
+            expiresInMinutes: ttlMinutes
+        };
+    }
+    async getInstallScript(token, request) {
         var _a, _b, _c, _d, _e, _f;
-        const tarballUrl = (_a = this.configService.get('AGENT_INSTALL_TARBALL_URL')) !== null && _a !== void 0 ? _a : 'https://cdn.loadtest.dev/agents/loadtest-agent.tgz';
-        const serviceName = (_b = this.configService.get('AGENT_SYSTEMD_SERVICE')) !== null && _b !== void 0 ? _b : 'loadtest-agent';
-        const installDir = (_c = this.configService.get('AGENT_INSTALL_DIR')) !== null && _c !== void 0 ? _c : '/usr/local/lib/loadtest-agent';
-        const binPath = (_d = this.configService.get('AGENT_BINARY_PATH')) !== null && _d !== void 0 ? _d : '/usr/local/bin/loadtest-agent';
-        const configPath = (_e = this.configService.get('AGENT_CONFIG_PATH')) !== null && _e !== void 0 ? _e : '/etc/loadtest-agent/config.yaml';
+        const secret = this.configService.get('AGENT_INSTALL_TOKEN_SECRET') ||
+            this.configService.get('JWT_SECRET');
+        let payload;
+        try {
+            payload = await this.jwtService.verifyAsync(token, { secret });
+        }
+        catch {
+            throw new common_1.UnauthorizedException('Invalid or expired installer token.');
+        }
+        if (payload.type !== 'install-script') {
+            throw new common_1.UnauthorizedException('Invalid installer token.');
+        }
+        const server = await this.prisma.server.findUnique({
+            where: { id: payload.serverId },
+            select: {
+                id: true,
+                allowedIp: true
+            }
+        });
+        if (!server) {
+            throw new common_1.NotFoundException('Server not found.');
+        }
+        const allowedIp = (0, ip_utils_1.normalizeIp)(server.allowedIp);
+        const clientIp = (0, ip_utils_1.normalizeIp)((0, ip_utils_1.extractClientIp)(request));
+        if (!allowedIp || allowedIp !== clientIp) {
+            throw new common_1.ForbiddenException('Installer can only be accessed from the registered server IP.');
+        }
+        const serviceName = (_a = this.configService.get('AGENT_SYSTEMD_SERVICE')) !== null && _a !== void 0 ? _a : 'loadtest-agent';
+        const installDir = (_b = this.configService.get('AGENT_INSTALL_DIR')) !== null && _b !== void 0 ? _b : '$HOME/loadtest-agent';
+        const binPath = (_c = this.configService.get('AGENT_BINARY_PATH')) !== null && _c !== void 0 ? _c : '/usr/local/bin/loadtest-agent';
+        const configPath = (_d = this.configService.get('AGENT_CONFIG_PATH')) !== null && _d !== void 0 ? _d : '/etc/loadtest-agent/config.yaml';
+        const apiPublicUrl = (_e = this.configService.get('API_PUBLIC_URL')) !== null && _e !== void 0 ? _e : 'https://api.loadtest.dev';
+        const agentVersion = (_f = this.configService.get('AGENT_SCRIPT_VERSION')) !== null && _f !== void 0 ? _f : '1.0.0';
+        const defaultUpdateIntervalMinutes = Number(this.configService.get('AGENT_DEFAULT_UPDATE_INTERVAL_MINUTES')) || 60;
         const serviceUnitPath = `/etc/systemd/system/${serviceName}.service`;
         const installDirEscaped = installDir.replace(/"/g, '\\"');
         const binPathEscaped = binPath.replace(/"/g, '\\"');
         const configPathEscaped = configPath.replace(/"/g, '\\"');
+        const agentScript = this.buildAgentSource(apiPublicUrl, configPath, agentVersion, defaultUpdateIntervalMinutes, binPath);
         return `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -37,21 +103,24 @@ BIN_PATH="${binPathEscaped}"
 CONFIG_PATH="${configPathEscaped}"
 SERVICE_NAME="${serviceName}"
 SERVICE_PATH="${serviceUnitPath}"
-TARBALL_URL="${tarballUrl}"
 
 mkdir -p "$INSTALL_DIR"
-curl -fsSL "$TARBALL_URL" | tar xz -C "$INSTALL_DIR"
 
-install -m 755 "$INSTALL_DIR/loadtest-agent" "$BIN_PATH"
+cat <<'LOADTEST_AGENT_SOURCE' > "$INSTALL_DIR/loadtest-agent.js"
+${agentScript}
+LOADTEST_AGENT_SOURCE
+
+install -m 755 "$INSTALL_DIR/loadtest-agent.js" "$BIN_PATH"
 install -d -m 755 "$(dirname "$CONFIG_PATH")"
 if [ ! -f "$CONFIG_PATH" ]; then
   cat <<'EOF' > "$CONFIG_PATH"
-server_id: "<server-id>"
+server_id: "${server.id}"
 agent_access_key: "<access-key>"
 agent_secret: "<secret>"
-api_url: "${(_f = this.configService.get('API_PUBLIC_URL')) !== null && _f !== void 0 ? _f : 'https://api.loadtest.dev'}"
+api_url: "${apiPublicUrl}"
 poll_interval_seconds: 30
 telemetry_interval_minutes: 60
+update_interval_minutes: ${defaultUpdateIntervalMinutes}
 log_level: info
 EOF
   chmod 600 "$CONFIG_PATH"
@@ -64,7 +133,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=${binPathEscaped} --config ${configPathEscaped}
+ExecStart=${binPathEscaped}
 Restart=always
 RestartSec=5
 
@@ -78,18 +147,263 @@ systemctl enable --now "$SERVICE_NAME"
 echo "[loadtest] Agent installed. Update $CONFIG_PATH with real credentials before restarting."
 `;
     }
+    getAgentScript(_agent) {
+        var _a, _b, _c, _d;
+        const apiPublicUrl = (_a = this.configService.get('API_PUBLIC_URL')) !== null && _a !== void 0 ? _a : 'https://api.loadtest.dev';
+        const configPath = (_b = this.configService.get('AGENT_CONFIG_PATH')) !== null && _b !== void 0 ? _b : '/etc/loadtest-agent/config.yaml';
+        const agentVersion = (_c = this.configService.get('AGENT_SCRIPT_VERSION')) !== null && _c !== void 0 ? _c : '1.0.0';
+        const defaultUpdateIntervalMinutes = Number(this.configService.get('AGENT_DEFAULT_UPDATE_INTERVAL_MINUTES')) || 60;
+        const binPath = (_d = this.configService.get('AGENT_BINARY_PATH')) !== null && _d !== void 0 ? _d : '/usr/local/bin/loadtest-agent';
+        return {
+            version: agentVersion,
+            source: this.buildAgentSource(apiPublicUrl, configPath, agentVersion, defaultUpdateIntervalMinutes, binPath)
+        };
+    }
+    buildAgentSource(apiUrl, configPath, agentVersion, defaultUpdateIntervalMinutes, binaryPath) {
+        const escapedApiUrl = apiUrl.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+        const escapedConfigPath = configPath.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+        const escapedBinaryPath = binaryPath.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+        return `#!/usr/bin/env node
+const fs = require('node:fs');
+const os = require('node:os');
+
+const DEFAULT_CONFIG_PATH = process.env.LOADTEST_AGENT_CONFIG ?? '${escapedConfigPath}';
+const DEFAULT_API_URL = '${escapedApiUrl}';
+const AGENT_VERSION = '${agentVersion}';
+const AGENT_FILE_PATH = process.env.LOADTEST_AGENT_BINARY_PATH ?? '${escapedBinaryPath}';
+const DEFAULT_UPDATE_INTERVAL_MINUTES = ${defaultUpdateIntervalMinutes};
+
+function parseConfig(filePath) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(\`Config file not found at \${filePath}\`);
+  }
+
+  const content = fs.readFileSync(filePath, 'utf8');
+  const config = {};
+
+  for (const line of content.split(/\\r?\\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+    const separatorIndex = trimmed.indexOf(':');
+    if (separatorIndex === -1) {
+      continue;
+    }
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+    config[key] = value;
+  }
+
+  return config;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function authenticate(config, apiBaseUrl) {
+  const response = await fetch(\`\${apiBaseUrl}/agent/auth\`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      serverId: config.server_id,
+      accessKey: config.agent_access_key,
+      secret: config.agent_secret
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(\`Agent auth failed: \${response.status}\`);
+  }
+
+  return response.json();
+}
+
+async function fetchLatestAgent(apiBaseUrl, token) {
+  const response = await fetch(\`\${apiBaseUrl}/agent/script\`, {
+    headers: {
+      Authorization: \`Bearer \${token}\`
+    }
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return response.json();
+}
+
+async function attemptSelfUpdate(apiBaseUrl, token) {
+  const manifest = await fetchLatestAgent(apiBaseUrl, token);
+  if (!manifest || manifest.version === AGENT_VERSION || !manifest.source) {
+    return false;
+  }
+
+  fs.writeFileSync(AGENT_FILE_PATH, manifest.source, { mode: 0o755 });
+  console.log(\`[loadtest-agent] Updated to version \${manifest.version}. Restarting...\`);
+  return true;
+}
+
+async function fetchNextScan(apiBaseUrl, token) {
+  const response = await fetch(\`\${apiBaseUrl}/agent/scans/next\`, {
+    method: 'POST',
+    headers: {
+      Authorization: \`Bearer \${token}\`
+    }
+  });
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(\`Failed to fetch next scan: \${response.status}\`);
+  }
+
+  return response.json();
+}
+
+async function reportScanFailure(apiBaseUrl, token, scanId, reason) {
+  await fetch(\`\${apiBaseUrl}/agent/scans/\${scanId}/report\`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: \`Bearer \${token}\`
+    },
+    body: JSON.stringify({
+      status: 'FAILED',
+      failureReason: reason,
+      summary: {
+        note: 'Reference agent installation script does not execute playbooks. Replace with production agent.'
+      }
+    })
+  });
+}
+
+async function sendTelemetry(apiBaseUrl, token, config) {
+  const payload = {
+    serverId: config.server_id,
+    hostname: os.hostname(),
+    platform: os.platform(),
+    uptimeSeconds: Math.round(os.uptime()),
+    loadAverage: os.loadavg(),
+    freeMemBytes: os.freemem(),
+    totalMemBytes: os.totalmem()
+  };
+
+  await fetch(\`\${apiBaseUrl}/agent/telemetry\`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: \`Bearer \${token}\`
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+async function main() {
+  const config = parseConfig(DEFAULT_CONFIG_PATH);
+  const pollIntervalMs = Math.max(5, Number(config.poll_interval_seconds ?? 30)) * 1000;
+  const telemetryIntervalMs = Math.max(1, Number(config.telemetry_interval_minutes ?? 60)) * 60 * 1000;
+  const updateIntervalMs =
+    Math.max(10, Number(config.update_interval_minutes ?? DEFAULT_UPDATE_INTERVAL_MINUTES)) *
+    60 *
+    1000;
+  const apiBaseUrl = (config.api_url ?? DEFAULT_API_URL).replace(/\\/$/, '');
+
+  console.log('[loadtest-agent] Starting agent loop');
+  let sessionToken = null;
+  let tokenExpiresAt = 0;
+  let lastTelemetryAt = 0;
+  let lastUpdateCheckAt = 0;
+
+  while (true) {
+    try {
+      if (!sessionToken || Date.now() >= tokenExpiresAt - 60_000) {
+        console.log('[loadtest-agent] Authenticating with API');
+        const session = await authenticate(config, apiBaseUrl);
+        sessionToken = session.sessionToken;
+        tokenExpiresAt = Date.now() + session.expiresInSeconds * 1000;
+      }
+
+      if (Date.now() - lastTelemetryAt >= telemetryIntervalMs) {
+        await sendTelemetry(apiBaseUrl, sessionToken, config);
+        lastTelemetryAt = Date.now();
+        console.log('[loadtest-agent] Telemetry sent');
+      }
+
+      if (Date.now() - lastUpdateCheckAt >= updateIntervalMs) {
+        lastUpdateCheckAt = Date.now();
+        const updated = await attemptSelfUpdate(apiBaseUrl, sessionToken);
+        if (updated) {
+          await sleep(2000);
+          process.exit(0);
+        }
+      }
+
+      const job = await fetchNextScan(apiBaseUrl, sessionToken);
+
+      if (job) {
+        console.log(\`[loadtest-agent] Received scan job \${job.id}, marking as failed placeholder\`);
+        await reportScanFailure(
+          apiBaseUrl,
+          sessionToken,
+          job.id,
+          'Reference agent does not execute playbooks.'
+        );
+      } else {
+        await sleep(pollIntervalMs);
+      }
+    } catch (error) {
+      console.error('[loadtest-agent] Error:', error.message);
+      sessionToken = null;
+      await sleep(Math.min(pollIntervalMs, 10_000));
+    }
+  }
+}
+
+main().catch((error) => {
+  console.error('[loadtest-agent] Fatal error:', error);
+  process.exit(1);
+});
+`;
+    }
 };
 exports.ServerAgentInstallController = ServerAgentInstallController;
 __decorate([
-    (0, public_decorator_1.Public)(),
-    (0, common_1.Get)('agents/install.sh'),
-    (0, common_1.Header)('Content-Type', 'text/x-shellscript'),
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMINISTRATOR, client_1.Role.OWNER),
+    (0, common_1.Post)('servers/:serverId/install-link'),
+    __param(0, (0, common_1.Param)('serverId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", String)
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ServerAgentInstallController.prototype, "createInstallLink", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('agents/install.sh/:token'),
+    (0, common_1.Header)('Content-Type', 'text/x-shellscript'),
+    __param(0, (0, common_1.Param)('token')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
 ], ServerAgentInstallController.prototype, "getInstallScript", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.UseGuards)(agent_session_guard_1.AgentSessionGuard),
+    (0, common_1.Get)('agent/script'),
+    __param(0, (0, current_agent_decorator_1.CurrentAgent)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], ServerAgentInstallController.prototype, "getAgentScript", null);
 exports.ServerAgentInstallController = ServerAgentInstallController = __decorate([
     (0, common_1.Controller)(),
-    __metadata("design:paramtypes", [config_1.ConfigService])
+    __metadata("design:paramtypes", [config_1.ConfigService,
+        jwt_1.JwtService,
+        prisma_service_1.PrismaService,
+        server_service_1.ServerService])
 ], ServerAgentInstallController);
 //# sourceMappingURL=server-agent-install.controller.js.map

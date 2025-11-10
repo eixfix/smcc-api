@@ -1,7 +1,26 @@
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import type { Request } from 'express';
+import type { AuthenticatedUser } from '../../common/types/auth-user';
+import { PrismaService } from '../../prisma/prisma.service';
+import { ServerService } from './server.service';
+import type { AgentSessionContext } from './guards/agent-session.guard';
 export declare class ServerAgentInstallController {
     private readonly configService;
-    constructor(configService: ConfigService);
-    getInstallScript(): string;
+    private readonly jwtService;
+    private readonly prisma;
+    private readonly serverService;
+    constructor(configService: ConfigService, jwtService: JwtService, prisma: PrismaService, serverService: ServerService);
+    createInstallLink(serverId: string, user: AuthenticatedUser): Promise<{
+        installUrl: string;
+        command: string;
+        expiresInMinutes: number;
+    }>;
+    getInstallScript(token: string, request: Request): Promise<string>;
+    getAgentScript(_agent: AgentSessionContext): {
+        version: string;
+        source: string;
+    };
+    private buildAgentSource;
 }
 //# sourceMappingURL=server-agent-install.controller.d.ts.map
