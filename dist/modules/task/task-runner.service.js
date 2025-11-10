@@ -20,7 +20,10 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
         this.queue = [];
         this.running = false;
         this.bundleReady = false;
-        this.loadTestsRoot = (0, node_path_1.resolve)(process.cwd(), '../load-tests');
+        const defaultRoot = resolve(process.cwd(), '../load-tests');
+        this.loadTestsRoot = process.env.LOAD_TESTS_ROOT
+        ? resolve(process.env.LOAD_TESTS_ROOT)
+        : defaultRoot;
         this.scriptByMode = {
             SMOKE: 'dist/smoke/bootstrap.js',
             STRESS: 'dist/smoke/bootstrap.js',
