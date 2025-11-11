@@ -33,6 +33,44 @@ if (CLI_ARGS.length > 0 && CLI_ARGS[0] === 'config') {
   process.exit(0);
 }
 
+function encryptEnvelopePayload(key, payload) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const plaintext = Buffer.from(JSON.stringify(payload ?? {}), 'utf8');
+  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return {
+    ciphertext: ciphertext.toString('base64'),
+    iv: iv.toString('base64'),
+    tag: tag.toString('base64')
+  };
+}
+
+function decryptEnvelopePayload(key, payload) {
+  if (
+    !payload ||
+    typeof payload.ciphertext !== 'string' ||
+    typeof payload.iv !== 'string' ||
+    typeof payload.tag !== 'string'
+  ) {
+    throw new Error('Malformed encrypted payload from API.');
+  }
+
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(payload.iv, 'base64'));
+  decipher.setAuthTag(Buffer.from(payload.tag, 'base64'));
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(payload.ciphertext, 'base64')),
+    decipher.final()
+  ]).toString('utf8');
+
+  if (!plaintext) {
+    return {};
+  }
+
+  return JSON.parse(plaintext);
+}
+
 function ensureMetadata() {
   if (fs.existsSync(DEFAULT_METADATA_PATH)) {
     return;
