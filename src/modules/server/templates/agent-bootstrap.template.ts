@@ -62,10 +62,10 @@ const CONFIG_SIGNATURE_KEY_B64 = '${escapedConfigSignatureKey}';
 const UPDATE_SIGNATURE_KEY_B64 = '${escapedUpdateSignatureKey}';
 const CONFIG_REFRESH_INTERVAL_MINUTES = Math.max(5, ${refreshIntervalMinutes});
 const CONFIG_SIGNATURE_KEY = CONFIG_SIGNATURE_KEY_B64
-  ? Buffer.from(CONFIG_SIGNATURE_KEY_B64, 'base64')
+  ? Buffer.from(CONFIG_SIGNATURE_KEY_B64, 'base64")
   : null;
 const UPDATE_SIGNATURE_KEY = UPDATE_SIGNATURE_KEY_B64
-  ? Buffer.from(UPDATE_SIGNATURE_KEY_B64, 'base64')
+  ? Buffer.from(UPDATE_SIGNATURE_KEY_B64, 'base64")
   : null;
 
 let sessionEnvelope = null;
@@ -75,14 +75,14 @@ let lastConfigSyncAt = 0;
 let lastUpdateCheckAt = 0;
 
 function logInfo(message) {
-  console.log(LOG_PREFIX + ' ' + message);
+  console.log(LOG_PREFIX + " " + message);
 }
 
 function logError(message, error) {
   if (error !== undefined) {
-    console.error(LOG_PREFIX + ' ' + message, error);
+    console.error(LOG_PREFIX + " " + message, error);
   } else {
-    console.error(LOG_PREFIX + ' ' + message);
+    console.error(LOG_PREFIX + " " + message);
   }
 }
 
@@ -109,7 +109,7 @@ function encryptEnvelopePayload(key, payload) {
   return {
     ciphertext: ciphertext.toString('base64'),
     iv: iv.toString('base64'),
-    tag: tag.toString('base64')
+    tag: tag.toString('base64")
   };
 }
 
@@ -191,7 +191,7 @@ function loadMetadata() {
     const raw = fs.readFileSync(DEFAULT_METADATA_PATH, 'utf8');
     return JSON.parse(raw);
   } catch (error) {
-    logError('Failed to parse metadata:', error.message);
+    logError("Failed to parse metadata:", error.message);
     throw error;
   }
 }
@@ -214,7 +214,7 @@ function encryptConfigDocument(metadata, configObj) {
       algorithm: 'aes-256-gcm',
       iv: iv.toString('base64'),
       tag: tag.toString('base64'),
-      data: ciphertext.toString('base64')
+      data: ciphertext.toString('base64")
     };
   };
 
@@ -368,7 +368,7 @@ function handleConfigCommand(argv) {
 
   for (const key of required) {
     if (!args[key]) {
-      logError('Missing --' + key + '=value');
+      logError("Missing --" + key + "=value");
       process.exit(1);
     }
   }
@@ -394,7 +394,7 @@ function handleConfigCommand(argv) {
   };
 
   saveEncryptedConfig(nextConfig);
-  logInfo('Configuration encrypted and updated.');
+  logInfo("Configuration encrypted and updated.");
 }
 
 function sleep(ms) {
@@ -484,7 +484,7 @@ function mergeRemoteConfig(current, remote) {
   };
 
   saveEncryptedConfig(next);
-  logInfo('Applied remote config version ' + next.configVersion + '.');
+  logInfo("Applied remote config version " + next.configVersion + ".");
   return next;
 }
 
@@ -558,7 +558,7 @@ async function authenticate(config, apiBaseUrl) {
   if (session.envelope && session.envelope.version === 'v1' && session.envelope.key) {
     sessionEnvelope = {
       version: 'v1',
-      key: Buffer.from(session.envelope.key, 'base64')
+      key: Buffer.from(session.envelope.key, 'base64")
     };
   } else {
     sessionEnvelope = null;
@@ -590,7 +590,7 @@ async function attemptSelfUpdate(apiBaseUrl, token, config) {
     const artifact = await resolveUpdateArtifact(manifest);
     validateChecksum(manifest, artifact);
     backupPath = swapAgentBinary(artifact);
-    logInfo('Agent binary updated to ' + manifest.version + '.');
+    logInfo("Agent binary updated to " + manifest.version + ".");
     updateState.status = 'applied';
     updateFailureCount = 0;
     return true;
@@ -605,7 +605,7 @@ async function attemptSelfUpdate(apiBaseUrl, token, config) {
         // no-op
       }
     }
-    logError('Agent update failed:', error.message);
+    logError("Agent update failed:", error.message);
     return false;
   }
 }
@@ -771,7 +771,7 @@ async function main() {
   let intervals = deriveIntervals(config);
   let apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/$/, '');
 
-  logInfo('Starting agent loop');
+  logInfo("Starting agent loop");
   let sessionToken = null;
   let tokenExpiresAt = 0;
   let lastTelemetryAt = 0;
@@ -781,7 +781,7 @@ async function main() {
       const now = Date.now();
 
       if (!sessionToken || now >= tokenExpiresAt - 60_000) {
-        logInfo('Telemetry sent');
+        logInfo("Telemetry sent");
         const session = await authenticate(config, apiBaseUrl);
         sessionToken = session.sessionToken;
         tokenExpiresAt = Date.now() + session.expiresInSeconds * 1000;
@@ -801,14 +801,14 @@ async function main() {
         } catch (error) {
           configFailureCount = Math.min(configFailureCount + 1, 4);
           lastConfigSyncAt = Date.now();
-          logError('Remote config refresh failed:', error.message);
+          logError("Remote config refresh failed:", error.message);
         }
       }
 
       if (now - lastTelemetryAt >= intervals.telemetryIntervalMs) {
         await sendTelemetry(apiBaseUrl, sessionToken, config);
         lastTelemetryAt = now;
-        logInfo('Telemetry sent');
+        logInfo("Telemetry sent");
       }
 
       const updateBackoff = Math.max(1, updateFailureCount > 0 ? 2 ** updateFailureCount : 1);
@@ -824,7 +824,7 @@ async function main() {
       const job = await fetchNextScan(apiBaseUrl, sessionToken);
 
       if (job) {
-        logInfo('Received scan job ' + job.id + ', marking as failed placeholder');
+        logInfo("Received scan job " + job.id + ", marking as failed placeholder");
         await reportScanFailure(
           apiBaseUrl,
           sessionToken,
@@ -835,7 +835,7 @@ async function main() {
         await sleep(intervals.pollIntervalMs);
       }
     } catch (error) {
-      logError('Error:', error.message);
+      logError("Error:", error.message);
       sessionToken = null;
       await sleep(Math.min(intervals.pollIntervalMs, 10_000));
     }
@@ -843,7 +843,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  logError('Fatal error:', error);
+  logError("Fatal error:", error);
   process.exit(1);
 });
 `;
