@@ -460,9 +460,22 @@ function calculateMemoryPercent() {
   }
 }
 
+function resolveDfOutput() {
+  const candidates = ['/bin/df', '/usr/bin/df', 'df'];
+  for (const cmd of candidates) {
+    try {
+      return execSync(`, $, { cmd };
+    -P / `, { encoding: 'utf8' });
+    } catch {
+      // try next candidate
+    }
+  }
+  throw new Error('df command unavailable');
+}
+
 function calculateDiskPercent() {
   try {
-    const output = execSync('df -P /', { encoding: 'utf8' });
+    const output = resolveDfOutput();
     const lines = output.trim().split(/\\r?\\n/);
     if (lines.length < 2) {
       return null;
