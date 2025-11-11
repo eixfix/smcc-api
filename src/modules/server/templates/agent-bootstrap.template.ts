@@ -232,7 +232,7 @@ function decryptConfigDocument(metadata, document) {
 
 function parseLegacyConfig(content) {
   const config = {};
-  for (const line of content.split(/\r?\n/)) {
+  for (const line of content.split(/\\r?\\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) {
       continue;
@@ -660,8 +660,8 @@ async function sendTelemetry(apiBaseUrl, token, config) {
 
 function readProcStat() {
   const contents = fs.readFileSync('/proc/stat', 'utf8');
-  const firstLine = contents.split(/\n/)[0];
-  const fields = firstLine.trim().split(/\s+/);
+  const firstLine = contents.split(/\\n/)[0];
+  const fields = firstLine.trim().split(/\\s+/);
   if (fields.length < 8 || fields[0] !== 'cpu') {
     throw new Error('Unexpected /proc/stat format');
   }
@@ -733,11 +733,11 @@ function calculateDiskPercent() {
     }
 
     const output = execSync('df -P /', { encoding: 'utf8' });
-    const lines = output.trim().split(/\r?\n/);
+    const lines = output.trim().split(/\\r?\\n/);
     if (lines.length < 2) {
       return null;
     }
-    const parts = lines[1].trim().split(/\s+/);
+    const parts = lines[1].trim().split(/\\s+/);
     if (parts.length < 5) {
       return null;
     }
