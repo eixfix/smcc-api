@@ -35,6 +35,7 @@ export function buildAgentBootstrapTemplate({
   const script = `#!/usr/bin/env node
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const { execSync } = require('node:child_process');
 const os = require('node:os');
 
 const DEFAULT_CONFIG_PATH = process.env.LOADTEST_AGENT_CONFIG ?? '${escapedConfigPath}';
@@ -475,17 +476,22 @@ function calculateMemoryPercent() {
 
 function calculateDiskPercent() {
   try {
-    const stat = fs.statSync('/');
-    if (!stat || !stat.blocks || !stat.blksize) {
+    const output = execSync('df -P /', { encoding: 'utf8' });
+    const lines = output.trim().split(/\r?\n/);
+    if (lines.length < 2) {
       return null;
     }
-    const total = stat.blocks * stat.blksize;
-    const free = stat.blocks * stat.blksize;
-    if (total === 0) {
+    const parts = lines[1].trim().split(/\s+/);
+    if (parts.length < 5) {
       return null;
     }
-    const used = total - free;
-    return Number(((used / total) * 100).toFixed(2));
+    const totalBlocks = Number(parts[1]);
+    const usedBlocks = Number(parts[2]);
+    if (!Number.isFinite(totalBlocks) || totalBlocks === 0 || !Number.isFinite(usedBlocks)) {
+      return null;
+    }
+    const usage = (usedBlocks / totalBlocks) * 100;
+    return Number(usage.toFixed(2));
   } catch {
     return null;
   }
