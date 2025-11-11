@@ -178,7 +178,7 @@ function loadMetadata() {
     const raw = fs.readFileSync(DEFAULT_METADATA_PATH, 'utf8');
     return JSON.parse(raw);
   } catch (error) {
-    console.error(LOG_PREFIX + ' Failed to parse metadata:', error.message);
+    console.error(LOG_PREFIX + " Failed to parse metadata:", error.message);
     throw error;
   }
 }
@@ -355,7 +355,7 @@ function handleConfigCommand(argv) {
 
   for (const key of required) {
     if (!args[key]) {
-      console.error(LOG_PREFIX + ' Missing --' + key + '=value');
+      console.error(LOG_PREFIX + " Missing --" + key + "=value");
       process.exit(1);
     }
   }
@@ -381,7 +381,7 @@ function handleConfigCommand(argv) {
   };
 
   saveEncryptedConfig(nextConfig);
-  console.log(LOG_PREFIX + ' Configuration encrypted and updated.');
+  console.log(LOG_PREFIX + " Configuration encrypted and updated.");
 }
 
 function sleep(ms) {
@@ -471,7 +471,7 @@ function mergeRemoteConfig(current, remote) {
   };
 
   saveEncryptedConfig(next);
-  console.log(LOG_PREFIX + ' Applied remote config version ' + next.configVersion + '.');
+  console.log(LOG_PREFIX + " Applied remote config version " + next.configVersion + '.');
   return next;
 }
 
@@ -577,7 +577,7 @@ async function attemptSelfUpdate(apiBaseUrl, token, config) {
     const artifact = await resolveUpdateArtifact(manifest);
     validateChecksum(manifest, artifact);
     backupPath = swapAgentBinary(artifact);
-    console.log(LOG_PREFIX + ' Agent binary updated to ' + manifest.version + '.');
+    console.log(LOG_PREFIX + " Agent binary updated to " + manifest.version + '.');
     updateState.status = 'applied';
     updateFailureCount = 0;
     return true;
@@ -592,7 +592,7 @@ async function attemptSelfUpdate(apiBaseUrl, token, config) {
         // no-op
       }
     }
-    console.error(LOG_PREFIX + ' Agent update failed:', error.message);
+    console.error(LOG_PREFIX + " Agent update failed:", error.message);
     return false;
   }
 }
@@ -758,7 +758,7 @@ async function main() {
   let intervals = deriveIntervals(config);
   let apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/$/, '');
 
-  console.log(LOG_PREFIX + ' Starting agent loop');
+  console.log(LOG_PREFIX + " Starting agent loop");
   let sessionToken = null;
   let tokenExpiresAt = 0;
   let lastTelemetryAt = 0;
@@ -768,7 +768,7 @@ async function main() {
       const now = Date.now();
 
       if (!sessionToken || now >= tokenExpiresAt - 60_000) {
-        console.log(LOG_PREFIX + ' Authenticating with API');
+        console.log(LOG_PREFIX + " Telemetry sent");
         const session = await authenticate(config, apiBaseUrl);
         sessionToken = session.sessionToken;
         tokenExpiresAt = Date.now() + session.expiresInSeconds * 1000;
@@ -788,14 +788,14 @@ async function main() {
         } catch (error) {
           configFailureCount = Math.min(configFailureCount + 1, 4);
           lastConfigSyncAt = Date.now();
-          console.error(LOG_PREFIX + ' Remote config refresh failed:', error.message);
+          console.error(LOG_PREFIX + " Remote config refresh failed:", error.message);
         }
       }
 
       if (now - lastTelemetryAt >= intervals.telemetryIntervalMs) {
         await sendTelemetry(apiBaseUrl, sessionToken, config);
         lastTelemetryAt = now;
-        console.log(LOG_PREFIX + ' Telemetry sent');
+        console.log(LOG_PREFIX + " Telemetry sent");
       }
 
       const updateBackoff = Math.max(1, updateFailureCount > 0 ? 2 ** updateFailureCount : 1);
@@ -811,7 +811,7 @@ async function main() {
       const job = await fetchNextScan(apiBaseUrl, sessionToken);
 
       if (job) {
-        console.log(LOG_PREFIX + ' Received scan job ' + job.id + ', marking as failed placeholder');
+        console.log(LOG_PREFIX + " Received scan job " + job.id + ', marking as failed placeholder');
         await reportScanFailure(
           apiBaseUrl,
           sessionToken,
@@ -822,7 +822,7 @@ async function main() {
         await sleep(intervals.pollIntervalMs);
       }
     } catch (error) {
-      console.error(LOG_PREFIX + ' Error:', error.message);
+      console.error(LOG_PREFIX + " Error:", error.message);
       sessionToken = null;
       await sleep(Math.min(intervals.pollIntervalMs, 10_000));
     }
@@ -830,7 +830,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(LOG_PREFIX + ' Fatal error:', error);
+  console.error(LOG_PREFIX + " Fatal error:", error);
   process.exit(1);
 });
 `;
