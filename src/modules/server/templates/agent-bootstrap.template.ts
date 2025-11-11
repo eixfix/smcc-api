@@ -427,29 +427,37 @@ async function sendTelemetry(apiBaseUrl, token, config) {
 }
 
 
+function readProcStat() {
+  const contents = fs.readFileSync('/proc/stat', 'utf8');
+  const firstLine = contents.split(/\\n/)[0];
+  const fields = firstLine.trim().split(/\\s+/);
+  if (fields.length < 8 || fields[0] !== 'cpu') {
+    throw new Error('Unexpected /proc/stat format');
+  }
+  const user = Number(fields[1]);
+  const nice = Number(fields[2]);
+  const sys = Number(fields[3]);
+  const idle = Number(fields[4]);
+  const iowait = Number(fields[5]);
+  const irq = Number(fields[6]);
+  const softirq = Number(fields[7]);
+  const steal = Number(fields[8] ?? 0);
+  return {
+    idle: idle + iowait,
+    total: user + nice + sys + idle + iowait + irq + softirq + steal
+  };
+}
+
 function calculateCpuPercent() {
   try {
-    const start = os.cpus();
-    const delayMs = 100;
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
-    const end = os.cpus();
+    const start = readProcStat();
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+    const end = readProcStat();
 
-    let idleDiff = 0;
-    let totalDiff = 0;
+    const idleDiff = end.idle - start.idle;
+    const totalDiff = end.total - start.total;
 
-    for (let i = 0; i < end.length; i++) {
-      const startTimes = start[i].times;
-      const endTimes = end[i].times;
-      const startTotal =
-        startTimes.user + startTimes.nice + startTimes.sys + startTimes.idle + startTimes.irq;
-      const endTotal =
-        endTimes.user + endTimes.nice + endTimes.sys + endTimes.idle + endTimes.irq;
-
-      idleDiff += endTimes.idle - startTimes.idle;
-      totalDiff += endTotal - startTotal;
-    }
-
-    if (totalDiff === 0) {
+    if (!Number.isFinite(totalDiff) || totalDiff <= 0) {
       return null;
     }
 
