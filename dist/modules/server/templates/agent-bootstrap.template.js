@@ -475,12 +475,29 @@ function resolveDfOutput() {
 
 function calculateDiskPercent() {
   try {
-    const output = resolveDfOutput();
+    if (typeof fs.statfsSync === 'function') {
+      const stats = fs.statfsSync('/');
+      if (
+        stats &&
+        Number.isFinite(stats.blocks) &&
+        Number.isFinite(stats.bavail) &&
+        Number.isFinite(stats.bsize)
+      ) {
+        const total = stats.blocks * stats.bsize;
+        const free = stats.bavail * stats.bsize;
+        if (Number.isFinite(total) && total > 0) {
+          const used = total - free;
+          return Number(((used / total) * 100).toFixed(2));
+        }
+      }
+    }
+
+    const output = execSync('df -P /', { encoding: 'utf8' });
     const lines = output.trim().split(/\\r?\\n/);
     if (lines.length < 2) {
       return null;
     }
-    const parts = lines[1].trim().split(/\s+/);
+    const parts = lines[1].trim().split(/\\s+/);
     if (parts.length < 5) {
       return null;
     }
