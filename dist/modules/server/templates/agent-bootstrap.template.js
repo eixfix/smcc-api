@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildAgentBootstrapTemplate = buildAgentBootstrapTemplate;
-const sanitizeLiteral = (value) => value.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+const sanitizeLiteral = (value) => value.replace(/\\/g, '\\\\').replace(/\`/g, '\\\`');
 function buildAgentBootstrapTemplate({ apiUrl, configPath, metadataPath, binaryPath, agentVersion, defaultUpdateIntervalMinutes, derivedKey, installNonce, logPrefix, configSignatureKey, updateSignatureKey, configRefreshIntervalMinutes }) {
     const escapedApiUrl = sanitizeLiteral(apiUrl);
     const escapedConfigPath = sanitizeLiteral(configPath);
@@ -15,7 +15,8 @@ function buildAgentBootstrapTemplate({ apiUrl, configPath, metadataPath, binaryP
     const refreshIntervalMinutes = Number.isFinite(configRefreshIntervalMinutes)
         ? configRefreshIntervalMinutes
         : 360;
-    const script = `#!/usr/bin/env node
+    const script = ;
+    `#!/usr/bin/env node
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const { execSync } = require('node:child_process');
@@ -72,6 +73,37 @@ function encryptEnvelopePayload(key, payload) {
   };
 }
 
+function ensureSignatureKey(scope) {
+  if (scope === 'config' && CONFIG_SIGNATURE_KEY) {
+    return CONFIG_SIGNATURE_KEY;
+  }
+  if (scope === 'update' && UPDATE_SIGNATURE_KEY) {
+    return UPDATE_SIGNATURE_KEY;
+  }
+  throw new Error(\`Missing ${scope} signature key.\`);
+}
+
+function verifySignedDocument(scope, document) {
+  if (!document || typeof document !== 'object') {
+    throw new Error(\`Malformed ${scope} document.\`);
+  }
+
+  const { signature, ...payload } = document;
+  if (!signature || typeof signature !== 'string') {
+    throw new Error(\`Missing ${scope} signature from API.\`);
+  }
+
+  const key = ensureSignatureKey(scope);
+  const serialized = JSON.stringify(payload ?? {});
+  const expected = crypto.createHmac('sha256', key).update(serialized).digest();
+  const provided = Buffer.from(signature, 'base64');
+
+  if (expected.length !== provided.length || !crypto.timingSafeEqual(expected, provided)) {
+    throw new Error(\`${scope} signature verification failed.\`);
+  }
+
+  return payload;
+}
 function decryptEnvelopePayload(key, payload) {
   if (
     !payload ||
@@ -772,7 +804,10 @@ main().catch((error) => {
   console.error(LOG_PREFIX + " Fatal error:", error);
   process.exit(1);
 });
-`;
-    return script;
+\`;
+
+  return script;
+}
+    ;
 }
 //# sourceMappingURL=agent-bootstrap.template.js.map
