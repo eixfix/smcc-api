@@ -357,7 +357,7 @@ function sleep(ms) {
 
 async function agentFetch(apiBaseUrl, path, token, options = {}) {
   const headers = {
-    Authorization: `Bearer ${token}`
+    Authorization: 'Bearer ' + token
   };
   const hasEnvelope = sessionEnvelope && sessionEnvelope.key;
 
@@ -374,7 +374,7 @@ async function agentFetch(apiBaseUrl, path, token, options = {}) {
     body = JSON.stringify(payload);
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(apiBaseUrl + path, {
     method: options.method || (options.body !== undefined ? 'POST' : 'GET'),
     headers,
     body
@@ -385,7 +385,7 @@ async function agentFetch(apiBaseUrl, path, token, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(`Request to ${path} failed: ${response.status}`);
+    throw new Error('Request to ' + path + ' failed: ' + response.status);
   }
 
   if (hasEnvelope && response.headers.get('x-agent-envelope') === 'v1') {
@@ -437,15 +437,15 @@ function mergeRemoteConfig(current, remote) {
   };
 
   saveEncryptedConfig(next);
-  console.log(`[\${LOG_PREFIX}] Applied remote config version ${next.configVersion}.`);
+  console.log('[\${LOG_PREFIX}] Applied remote config version ' + next.configVersion + '.');
   return next;
 }
 
 async function fetchUpdateManifestDocument(apiBaseUrl, token, currentVersion) {
   const suffix = currentVersion
-    ? `?currentVersion=${encodeURIComponent(currentVersion)}`
+    ? '?currentVersion=' + encodeURIComponent(currentVersion)
     : '';
-  const document = await agentFetch(apiBaseUrl, `/agent/update${suffix}`, token);
+  const document = await agentFetch(apiBaseUrl, '/agent/update' + suffix, token);
   if (!document) {
     return null;
   }
@@ -460,7 +460,7 @@ async function resolveUpdateArtifact(manifest) {
   if (manifest.downloadUrl) {
     const response = await fetch(manifest.downloadUrl);
     if (!response.ok) {
-      throw new Error(`Failed to download agent update: ${response.status}`);
+      throw new Error('Failed to download agent update: ' + response.status);
     }
     const arrayBuffer = await response.arrayBuffer();
     return Buffer.from(arrayBuffer);
@@ -480,12 +480,12 @@ function validateChecksum(manifest, buffer) {
 }
 
 function swapAgentBinary(buffer) {
-  const tempPath = `${AGENT_FILE_PATH}.tmp`;
+  const tempPath = AGENT_FILE_PATH + '.tmp';
   fs.writeFileSync(tempPath, buffer, { mode: 0o755 });
 
   let backupPath = null;
   if (fs.existsSync(AGENT_FILE_PATH)) {
-    backupPath = `${AGENT_FILE_PATH}.bak`;
+    backupPath = AGENT_FILE_PATH + '.bak';
     fs.copyFileSync(AGENT_FILE_PATH, backupPath);
   }
 
@@ -494,7 +494,7 @@ function swapAgentBinary(buffer) {
 }
 
 async function authenticate(config, apiBaseUrl) {
-  const response = await fetch(\`\${apiBaseUrl}/agent/auth\`, {
+  const response = await fetch(apiBaseUrl + '/agent/auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -506,9 +506,9 @@ async function authenticate(config, apiBaseUrl) {
   });
 
   if (!response.ok) {
-    throw new Error(\`Agent auth failed: \${response.status}\`);
+  if (!response.ok) {
+    throw new Error('Agent auth failed: ' + response.status);
   }
-
   const session = await response.json();
   if (session.envelope && session.envelope.version === 'v1' && session.envelope.key) {
     sessionEnvelope = {
@@ -545,7 +545,7 @@ async function attemptSelfUpdate(apiBaseUrl, token, config) {
     const artifact = await resolveUpdateArtifact(manifest);
     validateChecksum(manifest, artifact);
     backupPath = swapAgentBinary(artifact);
-    console.log(`[\${LOG_PREFIX}] Agent binary updated to ${manifest.version}.`);
+    console.log('[\${LOG_PREFIX}] Agent binary updated to ' + manifest.version + '.');
     updateState.status = 'applied';
     updateFailureCount = 0;
     return true;
@@ -560,7 +560,7 @@ async function attemptSelfUpdate(apiBaseUrl, token, config) {
         // no-op
       }
     }
-    console.error(`[\${LOG_PREFIX}] Agent update failed:`, error.message);
+    console.error('[\${LOG_PREFIX}] Agent update failed:', error.message);
     return false;
   }
 }
@@ -573,7 +573,7 @@ async function fetchNextScan(apiBaseUrl, token) {
 }
 
 async function reportScanFailure(apiBaseUrl, token, scanId, reason) {
-  await agentFetch(apiBaseUrl, `/agent/scans/${scanId}/report`, token, {
+  await agentFetch(apiBaseUrl, '/agent/scans/' + scanId + '/report', token, {
     method: 'POST',
     body: {
       status: 'FAILED',
@@ -779,7 +779,7 @@ async function main() {
       const job = await fetchNextScan(apiBaseUrl, sessionToken);
 
       if (job) {
-        console.log(`[\${LOG_PREFIX}] Received scan job ${job.id}, marking as failed placeholder`);
+        console.log('[\${LOG_PREFIX}] Received scan job ' + job.id + ', marking as failed placeholder');
         await reportScanFailure(
           apiBaseUrl,
           sessionToken,
