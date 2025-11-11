@@ -20,6 +20,7 @@ export interface AgentSessionPayload {
   type: 'agent-session';
   envelope?: string;
   envelopeVersion?: 'v1';
+  capabilities?: string[];
   exp?: number;
   iat?: number;
 }
@@ -38,6 +39,7 @@ interface AgentEnvelopeState {
 type AgentAwareRequest = Request & {
   agent?: AgentSessionContext;
   agentEnvelope?: AgentEnvelopeState | null;
+  agentCapabilities?: string[];
 };
 
 @Injectable()
@@ -99,6 +101,9 @@ export class AgentSessionGuard implements CanActivate {
         serverId: payload.serverId,
         organizationId: payload.organizationId
       };
+      request.agentCapabilities = Array.isArray(payload.capabilities)
+        ? payload.capabilities
+        : [];
 
       return true;
     } catch (error) {

@@ -19,7 +19,8 @@ const TELEMETRY_SELECT = {
     collectedAt: true,
     cpuPercent: true,
     memoryPercent: true,
-    diskPercent: true
+    diskPercent: true,
+    rawJson: true
 };
 const SERVER_SUMMARY_SELECT = {
     id: true,

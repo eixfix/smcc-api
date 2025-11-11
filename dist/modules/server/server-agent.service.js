@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ServerAgentService = void 0;
 const common_1 = require("@nestjs/common");
+const config_1 = require("@nestjs/config");
 const jwt_1 = require("@nestjs/jwt");
 const client_1 = require("@prisma/client");
 const bcrypt = require("bcryptjs");
@@ -18,13 +19,19 @@ const crypto_1 = require("crypto");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const ip_utils_1 = require("../../common/utils/ip.utils");
 const server_service_1 = require("./server.service");
+const credit_costs_1 = require("../../common/constants/credit-costs");
 const SECRET_TOKEN_BYTE_LENGTH = 32;
 const AGENT_SESSION_TTL_SECONDS = 15 * 60;
+const DEFAULT_POLL_INTERVAL_SECONDS = 30;
+const DEFAULT_TELEMETRY_INTERVAL_MINUTES = 30;
+const DEFAULT_UPDATE_INTERVAL_MINUTES = 60;
+const DEFAULT_CONFIG_REFRESH_MINUTES = 360;
 let ServerAgentService = class ServerAgentService {
-    constructor(prisma, serverService, jwtService) {
+    constructor(prisma, serverService, jwtService, configService) {
         this.prisma = prisma;
         this.serverService = serverService;
         this.jwtService = jwtService;
+        this.configService = configService;
     }
     async mintAgentToken(serverId, dto, user) {
         await this.serverService.ensureServerOwnerAccess(serverId, user);
@@ -98,7 +105,6 @@ let ServerAgentService = class ServerAgentService {
         });
     }
     async authenticateAgent(dto, clientIp) {
-        var _a;
         const agent = await this.prisma.serverAgent.findFirst({
             where: {
                 serverId: dto.serverId,
@@ -158,9 +164,15 @@ let ServerAgentService = class ServerAgentService {
         if (!isValid) {
             throw new common_1.UnauthorizedException('Invalid agent credentials.');
         }
-        const wantsEnvelope = (_a = dto.capabilities) === null || _a === void 0 ? void 0 : _a.includes('envelope_v1');
-        if (!wantsEnvelope) {
+        const capabilities = Array.isArray(dto.capabilities)
+            ? dto.capabilities.filter((flag) => typeof flag === 'string')
+            : [];
+        const capabilitySet = new Set(capabilities);
+        if (!capabilitySet.has('envelope_v1')) {
             throw new common_1.UnauthorizedException('Agents must support envelope_v1.');
+        }
+        if (!capabilitySet.has('config_v1') || !capabilitySet.has('update_v1')) {
+            throw new common_1.UnauthorizedException('Agents must advertise config_v1 and update_v1 capabilities.');
         }
         const envelopeKey = (0, crypto_1.randomBytes)(32);
         const sessionToken = await this.jwtService.signAsync({
@@ -169,7 +181,8 @@ let ServerAgentService = class ServerAgentService {
             organizationId: agent.server.organizationId,
             type: 'agent-session',
             envelope: envelopeKey.toString('base64'),
-            envelopeVersion: 'v1'
+            envelopeVersion: 'v1',
+            capabilities: Array.from(capabilitySet)
         });
         const now = new Date();
         await this.prisma.serverAgent.update({
@@ -217,12 +230,137 @@ let ServerAgentService = class ServerAgentService {
         const random = (0, crypto_1.randomBytes)(12).toString('base64url');
         return `agt_${random}`;
     }
+    getRemoteConfig(agent) {
+        var _a;
+        const issuedAt = new Date().toISOString();
+        const version = (_a = this.configService.get('AGENT_CONFIG_VERSION')) !== null && _a !== void 0 ? _a : '1.0.0';
+        const payload = {
+            version,
+            issuedAt,
+            serverId: agent.serverId,
+            settings: {
+                apiUrl: this.getApiUrl(),
+                pollIntervalSeconds: this.getNumericEnv('AGENT_CONFIG_POLL_INTERVAL_SECONDS', DEFAULT_POLL_INTERVAL_SECONDS),
+                telemetryIntervalMinutes: this.getNumericEnv('AGENT_CONFIG_TELEMETRY_INTERVAL_MINUTES', DEFAULT_TELEMETRY_INTERVAL_MINUTES),
+                updateIntervalMinutes: this.getNumericEnv('AGENT_CONFIG_UPDATE_INTERVAL_MINUTES', DEFAULT_UPDATE_INTERVAL_MINUTES),
+                refreshIntervalMinutes: this.getNumericEnv('AGENT_CONFIG_REFRESH_INTERVAL_MINUTES', DEFAULT_CONFIG_REFRESH_MINUTES),
+                featureFlags: this.getFeatureFlags(),
+                credits: {
+                    scan: credit_costs_1.CREDIT_COST_SERVER_SCAN,
+                    telemetry: credit_costs_1.CREDIT_COST_SERVER_TELEMETRY
+                }
+            }
+        };
+        return {
+            ...payload,
+            signature: this.signPayload(payload, true)
+        };
+    }
+    getUpdateManifest(agent, currentVersion) {
+        var _a, _b, _c, _d, _e, _f, _g;
+        const version = (_b = (_a = this.configService.get('AGENT_UPDATE_VERSION')) !== null && _a !== void 0 ? _a : this.configService.get('AGENT_SCRIPT_VERSION')) !== null && _b !== void 0 ? _b : '1.0.0';
+        const issuedAt = new Date().toISOString();
+        const downloadUrl = (_c = this.configService.get('AGENT_UPDATE_DOWNLOAD_URL')) !== null && _c !== void 0 ? _c : null;
+        const checksum = (_d = this.configService.get('AGENT_UPDATE_CHECKSUM')) !== null && _d !== void 0 ? _d : null;
+        const inlineSource = (_e = this.configService.get('AGENT_UPDATE_EMBEDDED_SOURCE_B64')) !== null && _e !== void 0 ? _e : null;
+        const manifest = {
+            version,
+            channel: (_f = this.configService.get('AGENT_UPDATE_CHANNEL')) !== null && _f !== void 0 ? _f : 'stable',
+            issuedAt,
+            serverId: agent.serverId,
+            minConfigVersion: (_g = this.configService.get('AGENT_CONFIG_VERSION')) !== null && _g !== void 0 ? _g : '1.0.0',
+            downloadUrl,
+            checksum: checksum
+                ? {
+                    algorithm: 'sha256',
+                    value: checksum
+                }
+                : null,
+            inlineSource: inlineSource
+                ? {
+                    encoding: 'base64',
+                    data: inlineSource
+                }
+                : null,
+            restartRequired: true,
+            currentVersion: currentVersion !== null && currentVersion !== void 0 ? currentVersion : null
+        };
+        return {
+            ...manifest,
+            signature: this.signPayload(manifest, false)
+        };
+    }
+    getApiUrl() {
+        var _a;
+        const url = (_a = this.configService.get('API_PUBLIC_URL')) !== null && _a !== void 0 ? _a : '';
+        return url.replace(/\/$/, '');
+    }
+    getNumericEnv(key, fallback) {
+        const raw = this.configService.get(key);
+        const parsed = raw !== undefined ? Number(raw) : Number.NaN;
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+    getFeatureFlags() {
+        const rawFlags = this.configService.get('AGENT_FEATURE_FLAGS_JSON');
+        if (!rawFlags) {
+            return {};
+        }
+        try {
+            const parsed = JSON.parse(rawFlags);
+            if (parsed && typeof parsed === 'object') {
+                return Object.entries(parsed).reduce((acc, [key, value]) => {
+                    acc[key] = Boolean(value);
+                    return acc;
+                }, {});
+            }
+        }
+        catch {
+            return {};
+        }
+        return {};
+    }
+    signPayload(payload, isConfig) {
+        const key = isConfig ? this.getConfigSignatureKey() : this.getUpdateSignatureKey();
+        try {
+            return (0, crypto_1.createHmac)('sha256', key)
+                .update(JSON.stringify(payload))
+                .digest('base64');
+        }
+        catch (error) {
+            throw new common_1.InternalServerErrorException('Unable to sign agent payload.');
+        }
+    }
+    getConfigSignatureKey() {
+        var _a;
+        const raw = (_a = this.configService.get('AGENT_CONFIG_SIGNATURE_KEY')) !== null && _a !== void 0 ? _a : this.configService.get('AGENT_PAYLOAD_KEY');
+        if (!raw) {
+            throw new common_1.InternalServerErrorException('AGENT_CONFIG_SIGNATURE_KEY is not configured.');
+        }
+        return this.toKeyBuffer(raw);
+    }
+    getUpdateSignatureKey() {
+        var _a, _b;
+        const raw = (_b = (_a = this.configService.get('AGENT_UPDATE_SIGNATURE_KEY')) !== null && _a !== void 0 ? _a : this.configService.get('AGENT_CONFIG_SIGNATURE_KEY')) !== null && _b !== void 0 ? _b : this.configService.get('AGENT_PAYLOAD_KEY');
+        if (!raw) {
+            throw new common_1.InternalServerErrorException('AGENT_UPDATE_SIGNATURE_KEY is not configured.');
+        }
+        return this.toKeyBuffer(raw);
+    }
+    toKeyBuffer(value) {
+        try {
+            return Buffer.from(value, /^[A-Za-z0-9+/=]+$/.test(value) ? 'base64' : 'utf8');
+        }
+        catch {
+            return Buffer.from(value, 'utf8');
+        }
+    }
 };
 exports.ServerAgentService = ServerAgentService;
 exports.ServerAgentService = ServerAgentService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         server_service_1.ServerService,
-        jwt_1.JwtService])
+        jwt_1.JwtService,
+        config_1.ConfigService])
 ], ServerAgentService);
 //# sourceMappingURL=server-agent.service.js.map

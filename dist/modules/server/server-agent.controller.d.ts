@@ -2,7 +2,11 @@ import type { Request } from 'express';
 import type { AuthenticatedUser } from '../../common/types/auth-user';
 import { AgentAuthDto } from './dto/agent-auth.dto';
 import { CreateServerAgentDto } from './dto/create-server-agent.dto';
+import type { AgentSessionContext } from './guards/agent-session.guard';
 import { ServerAgentService } from './server-agent.service';
+interface AgentCapabilityRequest extends Request {
+    agentCapabilities?: string[];
+}
 export declare class ServerAgentController {
     private readonly serverAgentService;
     constructor(serverAgentService: ServerAgentService);
@@ -51,5 +55,44 @@ export declare class ServerAgentController {
             scanSuspendedAt: null;
         };
     }>;
+    fetchConfig(request: AgentCapabilityRequest, agent: AgentSessionContext | undefined): {
+        signature: string;
+        version: string;
+        issuedAt: string;
+        serverId: string;
+        settings: {
+            apiUrl: string;
+            pollIntervalSeconds: number;
+            telemetryIntervalMinutes: number;
+            updateIntervalMinutes: number;
+            refreshIntervalMinutes: number;
+            featureFlags: Record<string, boolean>;
+            credits: {
+                scan: number;
+                telemetry: number;
+            };
+        };
+    };
+    fetchUpdateManifest(request: AgentCapabilityRequest, agent: AgentSessionContext | undefined, currentVersion?: string): {
+        signature: string;
+        version: string;
+        channel: string;
+        issuedAt: string;
+        serverId: string;
+        minConfigVersion: string;
+        downloadUrl: string | null;
+        checksum: {
+            algorithm: string;
+            value: string;
+        } | null;
+        inlineSource: {
+            encoding: "base64";
+            data: string;
+        } | null;
+        restartRequired: boolean;
+        currentVersion: string | null;
+    };
+    private assertCapability;
 }
+export {};
 //# sourceMappingURL=server-agent.controller.d.ts.map

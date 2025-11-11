@@ -40,4 +40,24 @@ __decorate([
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], TelemetryPayloadDto.prototype, "raw", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], TelemetryPayloadDto.prototype, "agentVersion", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], TelemetryPayloadDto.prototype, "configVersion", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], TelemetryPayloadDto.prototype, "updateStatus", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], TelemetryPayloadDto.prototype, "lastUpdateCheckAt", void 0);
 //# sourceMappingURL=telemetry-payload.dto.js.map

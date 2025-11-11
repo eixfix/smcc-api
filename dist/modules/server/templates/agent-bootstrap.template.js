@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildAgentBootstrapTemplate = buildAgentBootstrapTemplate;
 const sanitizeLiteral = (value) => value.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
-function buildAgentBootstrapTemplate({ apiUrl, configPath, metadataPath, binaryPath, agentVersion, defaultUpdateIntervalMinutes, derivedKey, installNonce, logPrefix }) {
+function buildAgentBootstrapTemplate({ apiUrl, configPath, metadataPath, binaryPath, agentVersion, defaultUpdateIntervalMinutes, derivedKey, installNonce, logPrefix, configSignatureKey, updateSignatureKey, configRefreshIntervalMinutes }) {
     const escapedApiUrl = sanitizeLiteral(apiUrl);
     const escapedConfigPath = sanitizeLiteral(configPath);
     const escapedMetadataPath = sanitizeLiteral(metadataPath);
@@ -10,6 +10,11 @@ function buildAgentBootstrapTemplate({ apiUrl, configPath, metadataPath, binaryP
     const escapedDerivedKey = sanitizeLiteral(derivedKey);
     const escapedInstallNonce = sanitizeLiteral(installNonce);
     const escapedLogPrefix = sanitizeLiteral(logPrefix || 'loadtest-agent');
+    const escapedConfigSignatureKey = sanitizeLiteral(configSignatureKey);
+    const escapedUpdateSignatureKey = sanitizeLiteral(updateSignatureKey);
+    const refreshIntervalMinutes = Number.isFinite(configRefreshIntervalMinutes)
+        ? configRefreshIntervalMinutes
+        : 360;
     const script = `#!/usr/bin/env node
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -25,8 +30,27 @@ const DEFAULT_UPDATE_INTERVAL_MINUTES = ${defaultUpdateIntervalMinutes};
 const FALLBACK_DERIVED_KEY_B64 = '${escapedDerivedKey}';
 const INSTALL_NONCE = '${escapedInstallNonce}';
 const LOG_PREFIX = '${escapedLogPrefix}';
+const CONFIG_SIGNATURE_KEY_B64 = '${escapedConfigSignatureKey}';
+const UPDATE_SIGNATURE_KEY_B64 = '${escapedUpdateSignatureKey}';
+const CONFIG_REFRESH_INTERVAL_MINUTES = Math.max(5, ${refreshIntervalMinutes});
+const CONFIG_SIGNATURE_KEY = CONFIG_SIGNATURE_KEY_B64
+  ? Buffer.from(CONFIG_SIGNATURE_KEY_B64, 'base64')
+  : null;
+const UPDATE_SIGNATURE_KEY = UPDATE_SIGNATURE_KEY_B64
+  ? Buffer.from(UPDATE_SIGNATURE_KEY_B64, 'base64')
+  : null;
 
 let sessionEnvelope = null;
+let configFailureCount = 0;
+let updateFailureCount = 0;
+let lastConfigSyncAt = 0;
+let lastUpdateCheckAt = 0;
+const updateState = {
+  status: 'idle',
+  targetVersion: AGENT_VERSION,
+  lastAttemptAt: null,
+  lastError: null
+};
 
 const CLI_ARGS = process.argv.slice(2);
 if (CLI_ARGS.length > 0 && CLI_ARGS[0] === 'config') {
@@ -173,12 +197,37 @@ function normalizeConfigShape(source) {
     apiUrl: config.apiUrl || config.api_url || DEFAULT_API_URL,
     pollIntervalSeconds: Number(config.pollIntervalSeconds || config.poll_interval_seconds || 30),
     telemetryIntervalMinutes: Number(
-      config.telemetryIntervalMinutes || config.telemetry_interval_minutes || 60
+      config.telemetryIntervalMinutes || config.telemetry_interval_minutes || 30
     ),
     updateIntervalMinutes: Number(
       config.updateIntervalMinutes || config.update_interval_minutes || DEFAULT_UPDATE_INTERVAL_MINUTES
     ),
+    refreshIntervalMinutes: Number(
+      config.refreshIntervalMinutes ||
+        config.refresh_interval_minutes ||
+        CONFIG_REFRESH_INTERVAL_MINUTES
+    ),
+    featureFlags:
+      (config.featureFlags && typeof config.featureFlags === 'object' ? config.featureFlags : {}) ||
+      {},
+    configVersion: config.configVersion || 'bootstrap',
     logLevel: config.logLevel || config.log_level || 'info'
+  };
+}
+
+function deriveIntervals(config) {
+  return {
+    pollIntervalMs: Math.max(5, Number(config.pollIntervalSeconds ?? 30)) * 1000,
+    telemetryIntervalMs:
+      Math.max(1, Number(config.telemetryIntervalMinutes ?? 30)) * 60 * 1000,
+    updateIntervalMs:
+      Math.max(10, Number(config.updateIntervalMinutes ?? DEFAULT_UPDATE_INTERVAL_MINUTES)) *
+      60 *
+      1000,
+    configRefreshIntervalMs:
+      Math.max(5, Number(config.refreshIntervalMinutes ?? CONFIG_REFRESH_INTERVAL_MINUTES)) *
+      60 *
+      1000
   };
 }
 
@@ -258,8 +307,15 @@ function handleConfigCommand(argv) {
     secret: args.secret,
     apiUrl: args['api-url'],
     pollIntervalSeconds: Number(args['poll-interval'] || current.pollIntervalSeconds || 30),
-    telemetryIntervalMinutes: Number(args['telemetry-interval'] || current.telemetryIntervalMinutes || 60),
+    telemetryIntervalMinutes: Number(
+      args['telemetry-interval'] || current.telemetryIntervalMinutes || 30
+    ),
     updateIntervalMinutes: Number(args['update-interval'] || current.updateIntervalMinutes || DEFAULT_UPDATE_INTERVAL_MINUTES),
+    refreshIntervalMinutes: Number(
+      args['refresh-interval'] || current.refreshIntervalMinutes || CONFIG_REFRESH_INTERVAL_MINUTES
+    ),
+    featureFlags: current.featureFlags || {},
+    configVersion: current.configVersion,
     logLevel: args['log-level'] || current.logLevel || 'info'
   };
 
@@ -271,6 +327,205 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function agentFetch(apiBaseUrl, path, token, options = {}) {
+  const headers = {
+    Authorization: `, Bearer, $, { token };
+    `
+  };
+  const hasEnvelope = sessionEnvelope && sessionEnvelope.key;
+
+  if (hasEnvelope) {
+    headers['x-agent-envelope'] = 'v1';
+  }
+
+  let body;
+  if (options.body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    const payload = hasEnvelope
+      ? encryptEnvelopePayload(sessionEnvelope.key, options.body)
+      : options.body;
+    body = JSON.stringify(payload);
+  }
+
+  const response = await fetch(`;
+    $;
+    {
+        apiBaseUrl;
+    }
+    $;
+    {
+        path;
+    }
+    `, {
+    method: options.method || (options.body !== undefined ? 'POST' : 'GET'),
+    headers,
+    body
+  });
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`;
+    Request;
+    to;
+    $;
+    {
+        path;
+    }
+    failed: $;
+    {
+        response.status;
+    }
+    `);
+  }
+
+  if (hasEnvelope && response.headers.get('x-agent-envelope') === 'v1') {
+    const encrypted = await response.json();
+    return decryptEnvelopePayload(sessionEnvelope.key, encrypted);
+  }
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    return response.json();
+  }
+
+  return response.text();
+}
+
+async function fetchRemoteConfigDocument(apiBaseUrl, token) {
+  const document = await agentFetch(apiBaseUrl, '/agent/config', token);
+  if (!document) {
+    return null;
+  }
+  return verifySignedDocument('config', document);
+}
+
+function mergeRemoteConfig(current, remote) {
+  if (!remote || !remote.settings) {
+    return current;
+  }
+
+  const settings = remote.settings;
+  const next = {
+    ...current,
+    apiUrl: settings.apiUrl || current.apiUrl,
+    pollIntervalSeconds:
+      Number(settings.pollIntervalSeconds ?? current.pollIntervalSeconds) || current.pollIntervalSeconds,
+    telemetryIntervalMinutes:
+      Number(settings.telemetryIntervalMinutes ?? current.telemetryIntervalMinutes) ||
+      current.telemetryIntervalMinutes,
+    updateIntervalMinutes:
+      Number(settings.updateIntervalMinutes ?? current.updateIntervalMinutes) ||
+      current.updateIntervalMinutes,
+    refreshIntervalMinutes:
+      Number(settings.refreshIntervalMinutes ?? current.refreshIntervalMinutes) ||
+      current.refreshIntervalMinutes,
+    featureFlags:
+      (settings.featureFlags && typeof settings.featureFlags === 'object'
+        ? settings.featureFlags
+        : current.featureFlags) || {},
+    configVersion: remote.version || current.configVersion
+  };
+
+  saveEncryptedConfig(next);
+  console.log(`[];
+    $;
+    {
+        LOG_PREFIX;
+    }
+    Applied;
+    remote;
+    config;
+    version;
+    $;
+    {
+        next.configVersion;
+    }
+    `);
+  return next;
+}
+
+async function fetchUpdateManifestDocument(apiBaseUrl, token, currentVersion) {
+  const suffix = currentVersion
+    ? ` ? currentVersion = $ : ;
+    {
+        encodeURIComponent(currentVersion);
+    }
+    `
+    : '';
+  const document = await agentFetch(apiBaseUrl, ` / agent / update$;
+    {
+        suffix;
+    }
+    `, token);
+  if (!document) {
+    return null;
+  }
+  return verifySignedDocument('update', document);
+}
+
+async function resolveUpdateArtifact(manifest) {
+  if (manifest.inlineSource && manifest.inlineSource.encoding === 'base64') {
+    return Buffer.from(manifest.inlineSource.data, 'base64');
+  }
+
+  if (manifest.downloadUrl) {
+    const response = await fetch(manifest.downloadUrl);
+    if (!response.ok) {
+      throw new Error(`;
+    Failed;
+    to;
+    download;
+    agent;
+    update: $;
+    {
+        response.status;
+    }
+    `);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  throw new Error('Update manifest did not include a download URL or inline payload.');
+}
+
+function validateChecksum(manifest, buffer) {
+  if (!manifest.checksum || manifest.checksum.algorithm !== 'sha256') {
+    return;
+  }
+  const digest = crypto.createHash('sha256').update(buffer).digest('hex');
+  if (digest !== manifest.checksum.value) {
+    throw new Error('Downloaded agent artifact failed checksum validation.');
+  }
+}
+
+function swapAgentBinary(buffer) {
+  const tempPath = `;
+    $;
+    {
+        AGENT_FILE_PATH;
+    }
+    tmp `;
+  fs.writeFileSync(tempPath, buffer, { mode: 0o755 });
+
+  let backupPath = null;
+  if (fs.existsSync(AGENT_FILE_PATH)) {
+    backupPath = `;
+    $;
+    {
+        AGENT_FILE_PATH;
+    }
+    bak `;
+    fs.copyFileSync(AGENT_FILE_PATH, backupPath);
+  }
+
+  fs.renameSync(tempPath, AGENT_FILE_PATH);
+  return backupPath;
+}
+
 async function authenticate(config, apiBaseUrl) {
   const response = await fetch(\`\${apiBaseUrl}/agent/auth\`, {
     method: 'POST',
@@ -279,7 +534,7 @@ async function authenticate(config, apiBaseUrl) {
       serverId: config.serverId,
       accessKey: config.accessKey,
       secret: config.secret,
-      capabilities: ['envelope_v1']
+      capabilities: ['envelope_v1', 'config_v1', 'update_v1']
     })
   });
 
@@ -304,270 +559,299 @@ async function fetchLatestAgent() {
   return null;
 }
 
-async function attemptSelfUpdate() {
-  return false;
+async function attemptSelfUpdate(apiBaseUrl, token, config) {
+  updateState.lastError = null;
+  const manifest = await fetchUpdateManifestDocument(apiBaseUrl, token, config.configVersion || AGENT_VERSION);
+
+  if (!manifest || manifest.version === AGENT_VERSION) {
+    updateState.status = 'idle';
+    updateState.targetVersion = AGENT_VERSION;
+    return false;
+  }
+
+  updateState.targetVersion = manifest.version;
+  updateState.status = 'downloading';
+  updateState.lastAttemptAt = new Date().toISOString();
+
+  let backupPath = null;
+  try {
+    const artifact = await resolveUpdateArtifact(manifest);
+    validateChecksum(manifest, artifact);
+    backupPath = swapAgentBinary(artifact);
+    console.log(`[];
+    $;
+    {
+        LOG_PREFIX;
+    }
+    Agent;
+    binary;
+    updated;
+    to;
+    $;
+    {
+        manifest.version;
+    }
+    `);
+    updateState.status = 'applied';
+    updateFailureCount = 0;
+    return true;
+  } catch (error) {
+    updateFailureCount = Math.min(updateFailureCount + 1, 4);
+    updateState.status = 'error';
+    updateState.lastError = error.message;
+    if (backupPath) {
+      try {
+        fs.copyFileSync(backupPath, AGENT_FILE_PATH);
+      } catch {
+        // no-op
+      }
+    }
+    console.error(`[];
+    $;
+    {
+        LOG_PREFIX;
+    }
+    Agent;
+    update;
+    failed: `, error.message);
+    return false;
+  }
 }
 
 async function fetchNextScan(apiBaseUrl, token) {
-  const headers = {
-    Authorization: \`Bearer \${token}\`,
-    'Content-Type': 'application/json'
-  };
-
-  let body = null;
-  if (sessionEnvelope && sessionEnvelope.key) {
-    headers['x-agent-envelope'] = 'v1';
-    body = JSON.stringify(encryptEnvelopePayload(sessionEnvelope.key, {}));
-  }
-
-  const response = await fetch(\`\${apiBaseUrl}/agent/scans/next\`, {
+  return agentFetch(apiBaseUrl, '/agent/scans/next', token, {
     method: 'POST',
-    headers,
-    body
+    body: {}
   });
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  if (!response.ok) {
-    throw new Error(\`Failed to fetch next scan: \${response.status}\`);
-  }
-
-  if (sessionEnvelope && sessionEnvelope.key && response.headers.get('x-agent-envelope') === 'v1') {
-    const payload = await response.json();
-    return decryptEnvelopePayload(sessionEnvelope.key, payload);
-  }
-
-  return response.json();
 }
 
 async function reportScanFailure(apiBaseUrl, token, scanId, reason) {
-  const headers = {
-    Authorization: \`Bearer \${token}\`,
-    'Content-Type': 'application/json'
-  };
-
-  let payload = {
-    status: 'FAILED',
-    failureReason: reason,
-    summary: {
-      note: 'Reference agent installation script does not execute playbooks. Replace with production agent.'
+  await agentFetch(apiBaseUrl, ` / agent / scans / $;
+    {
+        scanId;
     }
-  };
-
-  if (sessionEnvelope && sessionEnvelope.key) {
-    headers['x-agent-envelope'] = 'v1';
-    payload = encryptEnvelopePayload(sessionEnvelope.key, payload);
-  }
-
-  await fetch(\`\${apiBaseUrl}/agent/scans/\${scanId}/report\`, {
+    /report`, token, {;
     method: 'POST',
-    headers,
-    body: JSON.stringify(payload)
-  });
+        body;
+    {
+        status: 'FAILED',
+            failureReason;
+        reason,
+            summary;
+        {
+            note: 'Reference agent installation script does not execute playbooks. Replace with production agent.';
+        }
+    }
 }
-
+;
 async function sendTelemetry(apiBaseUrl, token, config) {
-  const headers = {
-    Authorization: \`Bearer \${token}\`,
-    'Content-Type': 'application/json'
-  };
-
-  const cpuPercent = calculateCpuPercent();
-  const memoryPercent = calculateMemoryPercent();
-  const diskPercent = calculateDiskPercent();
-
-  let payload = {
-    cpuPercent,
-    memoryPercent,
-    diskPercent,
-    raw: {
-      hostname: os.hostname(),
-      platform: os.platform(),
-      uptimeSeconds: Math.round(os.uptime()),
-      loadAverage: os.loadavg(),
-      freeMemBytes: os.freemem(),
-      totalMemBytes: os.totalmem()
-    }
-  };
-
-  if (sessionEnvelope && sessionEnvelope.key) {
-    headers['x-agent-envelope'] = 'v1';
-    payload = encryptEnvelopePayload(sessionEnvelope.key, payload);
-  }
-
-  await fetch(\`\${apiBaseUrl}/agent/telemetry\`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload)
-  });
+    const cpuPercent = calculateCpuPercent();
+    const memoryPercent = calculateMemoryPercent();
+    const diskPercent = calculateDiskPercent();
+    const timestamp = new Date().toISOString();
+    const payload = {
+        cpuPercent,
+        memoryPercent,
+        diskPercent,
+        agentVersion: AGENT_VERSION,
+        configVersion: config.configVersion,
+        updateStatus: updateState.status,
+        lastUpdateCheckAt: lastUpdateCheckAt ? new Date(lastUpdateCheckAt).toISOString() : undefined,
+        raw: {
+            hostname: os.hostname(),
+            platform: os.platform(),
+            uptimeSeconds: Math.round(os.uptime()),
+            loadAverage: os.loadavg(),
+            freeMemBytes: os.freemem(),
+            totalMemBytes: os.totalmem(),
+            update: {
+                status: updateState.status,
+                targetVersion: updateState.targetVersion,
+                lastAttemptAt: updateState.lastAttemptAt,
+                lastError: updateState.lastError
+            },
+            config: {
+                version: config.configVersion,
+                refreshIntervalMinutes: config.refreshIntervalMinutes
+            },
+            timestamp
+        }
+    };
+    await agentFetch(apiBaseUrl, '/agent/telemetry', token, {
+        method: 'POST',
+        body: payload
+    });
 }
-
-
 function readProcStat() {
-  const contents = fs.readFileSync('/proc/stat', 'utf8');
-  const firstLine = contents.split(/\\n/)[0];
-  const fields = firstLine.trim().split(/\\s+/);
-  if (fields.length < 8 || fields[0] !== 'cpu') {
-    throw new Error('Unexpected /proc/stat format');
-  }
-  const user = Number(fields[1]);
-  const nice = Number(fields[2]);
-  const sys = Number(fields[3]);
-  const idle = Number(fields[4]);
-  const iowait = Number(fields[5]);
-  const irq = Number(fields[6]);
-  const softirq = Number(fields[7]);
-  const steal = Number(fields[8] ?? 0);
-  return {
-    idle: idle + iowait,
-    total: user + nice + sys + idle + iowait + irq + softirq + steal
-  };
+    var _a;
+    const contents = fs.readFileSync('/proc/stat', 'utf8');
+    const firstLine = contents.split(/\\n/)[0];
+    const fields = firstLine.trim().split(/\\s+/);
+    if (fields.length < 8 || fields[0] !== 'cpu') {
+        throw new Error('Unexpected /proc/stat format');
+    }
+    const user = Number(fields[1]);
+    const nice = Number(fields[2]);
+    const sys = Number(fields[3]);
+    const idle = Number(fields[4]);
+    const iowait = Number(fields[5]);
+    const irq = Number(fields[6]);
+    const softirq = Number(fields[7]);
+    const steal = Number((_a = fields[8]) !== null && _a !== void 0 ? _a : 0);
+    return {
+        idle: idle + iowait,
+        total: user + nice + sys + idle + iowait + irq + softirq + steal
+    };
 }
-
 function calculateCpuPercent() {
-  try {
-    const start = readProcStat();
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
-    const end = readProcStat();
-
-    const idleDiff = end.idle - start.idle;
-    const totalDiff = end.total - start.total;
-
-    if (!Number.isFinite(totalDiff) || totalDiff <= 0) {
-      return null;
-    }
-
-    const usage = ((totalDiff - idleDiff) / totalDiff) * 100;
-    return Number(usage.toFixed(2));
-  } catch {
-    return null;
-  }
-}
-
-function calculateMemoryPercent() {
-  try {
-    const total = os.totalmem();
-    const free = os.freemem();
-    if (total === 0) {
-      return null;
-    }
-    const used = total - free;
-    return Number(((used / total) * 100).toFixed(2));
-  } catch {
-    return null;
-  }
-}
-
-function calculateDiskPercent() {
-  try {
-    if (typeof fs.statfsSync === 'function') {
-      const stats = fs.statfsSync('/');
-      if (
-        stats &&
-        Number.isFinite(stats.blocks) &&
-        Number.isFinite(stats.bavail) &&
-        Number.isFinite(stats.bsize)
-      ) {
-        const total = stats.blocks * stats.bsize;
-        const free = stats.bavail * stats.bsize;
-        if (Number.isFinite(total) && total > 0) {
-          const used = total - free;
-          return Number(((used / total) * 100).toFixed(2));
-        }
-      }
-    }
-
-    const output = execSync('df -P /', { encoding: 'utf8' });
-    const lines = output.trim().split(/\\r?\\n/);
-    if (lines.length < 2) {
-      return null;
-    }
-    const parts = lines[1].trim().split(/\\s+/);
-    if (parts.length < 5) {
-      return null;
-    }
-    const totalBlocks = Number(parts[1]);
-    const usedBlocks = Number(parts[2]);
-    if (!Number.isFinite(totalBlocks) || totalBlocks === 0 || !Number.isFinite(usedBlocks)) {
-      return null;
-    }
-    const usage = (usedBlocks / totalBlocks) * 100;
-    return Number(usage.toFixed(2));
-  } catch {
-    return null;
-  }
-}
-
-async function main() {
-  const config = loadConfig();
-  const pollIntervalMs = Math.max(5, Number(config.pollIntervalSeconds ?? 30)) * 1000;
-  const telemetryIntervalMs = Math.max(1, Number(config.telemetryIntervalMinutes ?? 60)) * 60 * 1000;
-  const updateIntervalMs =
-    Math.max(10, Number(config.updateIntervalMinutes ?? DEFAULT_UPDATE_INTERVAL_MINUTES)) *
-    60 *
-    1000;
-  const apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\\/$/, '');
-
-  console.log('[\${LOG_PREFIX}] Starting agent loop');
-  let sessionToken = null;
-  let tokenExpiresAt = 0;
-  let lastTelemetryAt = 0;
-  let lastUpdateCheckAt = 0;
-
-  while (true) {
     try {
-      if (!sessionToken || Date.now() >= tokenExpiresAt - 60_000) {
-        console.log('[\${LOG_PREFIX}] Authenticating with API');
-        const session = await authenticate(config, apiBaseUrl);
-        sessionToken = session.sessionToken;
-        tokenExpiresAt = Date.now() + session.expiresInSeconds * 1000;
-      }
-
-      if (Date.now() - lastTelemetryAt >= telemetryIntervalMs) {
-        await sendTelemetry(apiBaseUrl, sessionToken, config);
-        lastTelemetryAt = Date.now();
-        console.log('[\${LOG_PREFIX}] Telemetry sent');
-      }
-
-      if (Date.now() - lastUpdateCheckAt >= updateIntervalMs) {
-        lastUpdateCheckAt = Date.now();
-        const updated = await attemptSelfUpdate(apiBaseUrl, sessionToken);
-        if (updated) {
-          await sleep(2000);
-          process.exit(0);
+        const start = readProcStat();
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+        const end = readProcStat();
+        const idleDiff = end.idle - start.idle;
+        const totalDiff = end.total - start.total;
+        if (!Number.isFinite(totalDiff) || totalDiff <= 0) {
+            return null;
         }
-      }
-
-      const job = await fetchNextScan(apiBaseUrl, sessionToken);
-
-      if (job) {
-        console.log(\`[\${LOG_PREFIX}] Received scan job \${job.id}, marking as failed placeholder\`);
-        await reportScanFailure(
-          apiBaseUrl,
-          sessionToken,
-          job.id,
-          'Reference agent does not execute playbooks.'
-        );
-      } else {
-        await sleep(pollIntervalMs);
-      }
-    } catch (error) {
-      console.error('[\${LOG_PREFIX}] Error:', error.message);
-      sessionToken = null;
-      await sleep(Math.min(pollIntervalMs, 10_000));
+        const usage = ((totalDiff - idleDiff) / totalDiff) * 100;
+        return Number(usage.toFixed(2));
     }
-  }
+    catch {
+        return null;
+    }
 }
-
+function calculateMemoryPercent() {
+    try {
+        const total = os.totalmem();
+        const free = os.freemem();
+        if (total === 0) {
+            return null;
+        }
+        const used = total - free;
+        return Number(((used / total) * 100).toFixed(2));
+    }
+    catch {
+        return null;
+    }
+}
+function calculateDiskPercent() {
+    try {
+        if (typeof fs.statfsSync === 'function') {
+            const stats = fs.statfsSync('/');
+            if (stats &&
+                Number.isFinite(stats.blocks) &&
+                Number.isFinite(stats.bavail) &&
+                Number.isFinite(stats.bsize)) {
+                const total = stats.blocks * stats.bsize;
+                const free = stats.bavail * stats.bsize;
+                if (Number.isFinite(total) && total > 0) {
+                    const used = total - free;
+                    return Number(((used / total) * 100).toFixed(2));
+                }
+            }
+        }
+        const output = execSync('df -P /', { encoding: 'utf8' });
+        const lines = output.trim().split(/\\r?\\n/);
+        if (lines.length < 2) {
+            return null;
+        }
+        const parts = lines[1].trim().split(/\\s+/);
+        if (parts.length < 5) {
+            return null;
+        }
+        const totalBlocks = Number(parts[1]);
+        const usedBlocks = Number(parts[2]);
+        if (!Number.isFinite(totalBlocks) || totalBlocks === 0 || !Number.isFinite(usedBlocks)) {
+            return null;
+        }
+        const usage = (usedBlocks / totalBlocks) * 100;
+        return Number(usage.toFixed(2));
+    }
+    catch {
+        return null;
+    }
+}
+async function main() {
+    var _a, _b;
+    let config = loadConfig();
+    let intervals = deriveIntervals(config);
+    let apiBaseUrl = ((_a = config.apiUrl) !== null && _a !== void 0 ? _a : DEFAULT_API_URL).replace(/\/$/, '');
+    console.log('[\${LOG_PREFIX}] Starting agent loop');
+    let sessionToken = null;
+    let tokenExpiresAt = 0;
+    let lastTelemetryAt = 0;
+    while (true) {
+        try {
+            const now = Date.now();
+            if (!sessionToken || now >= tokenExpiresAt - 60000) {
+                console.log('[\${LOG_PREFIX}] Authenticating with API');
+                const session = await authenticate(config, apiBaseUrl);
+                sessionToken = session.sessionToken;
+                tokenExpiresAt = Date.now() + session.expiresInSeconds * 1000;
+            }
+            const configBackoff = Math.max(1, configFailureCount > 0 ? 2 ** configFailureCount : 1);
+            if (now - lastConfigSyncAt >= intervals.configRefreshIntervalMs * configBackoff) {
+                try {
+                    const remote = await fetchRemoteConfigDocument(apiBaseUrl, sessionToken);
+                    lastConfigSyncAt = Date.now();
+                    configFailureCount = 0;
+                    if (remote && remote.version && remote.version !== config.configVersion) {
+                        config = mergeRemoteConfig(config, remote);
+                        intervals = deriveIntervals(config);
+                        apiBaseUrl = ((_b = config.apiUrl) !== null && _b !== void 0 ? _b : DEFAULT_API_URL).replace(/\/$/, '');
+                    }
+                }
+                catch (error) {
+                    configFailureCount = Math.min(configFailureCount + 1, 4);
+                    lastConfigSyncAt = Date.now();
+                    console.error('[\${LOG_PREFIX}] Remote config refresh failed:', error.message);
+                }
+            }
+            if (now - lastTelemetryAt >= intervals.telemetryIntervalMs) {
+                await sendTelemetry(apiBaseUrl, sessionToken, config);
+                lastTelemetryAt = now;
+                console.log('[\${LOG_PREFIX}] Telemetry sent');
+            }
+            const updateBackoff = Math.max(1, updateFailureCount > 0 ? 2 ** updateFailureCount : 1);
+            if (now - lastUpdateCheckAt >= intervals.updateIntervalMs * updateBackoff) {
+                lastUpdateCheckAt = now;
+                const updated = await attemptSelfUpdate(apiBaseUrl, sessionToken, config);
+                if (updated) {
+                    await sleep(2000);
+                    process.exit(0);
+                }
+            }
+            const job = await fetchNextScan(apiBaseUrl, sessionToken);
+            if (job) {
+                console.log(`[\${LOG_PREFIX}] Received scan job ${job.id}, marking as failed placeholder`);
+                await reportScanFailure(apiBaseUrl, sessionToken, job.id, 'Reference agent does not execute playbooks.');
+            }
+            else {
+                await sleep(intervals.pollIntervalMs);
+            }
+        }
+        catch (error) {
+            console.error('[\${LOG_PREFIX}] Error:', error.message);
+            sessionToken = null;
+            await sleep(Math.min(intervals.pollIntervalMs, 10000));
+        }
+    }
+}
 main().catch((error) => {
-  console.error('[\${LOG_PREFIX}] Fatal error:', error);
-  process.exit(1);
+    console.error('[\${LOG_PREFIX}] Fatal error:', error);
+    process.exit(1);
 });
 `;
-    return script
-        .replace(`const LOG_PREFIX = '${escapedLogPrefix}';\n`, '')
-        .replace(/\[\\\$\{LOG_PREFIX\}\]/g, `[${escapedLogPrefix}]`);
+
+  return script
+    .replace(`;
+const LOG_PREFIX = '${escapedLogPrefix}';
+n `, '')
+    .replace(/\[\\\$\{LOG_PREFIX\}\]/g, `[$];
+{
+    escapedLogPrefix;
 }
+`);
+}
+;
 //# sourceMappingURL=agent-bootstrap.template.js.map

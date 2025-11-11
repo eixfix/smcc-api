@@ -263,16 +263,32 @@ let ServerScanService = class ServerScanService {
         }
         this.assertScanningAllowed(server.isSuspended, server.organization.scanSuspendedAt);
         const record = await this.prisma.$transaction(async (tx) => {
-            var _a, _b, _c;
+            var _a, _b, _c, _d;
             await this.creditService.debitForTelemetry(server.organizationId, tx);
+            const rawPayload = {
+                ...((_a = dto.raw) !== null && _a !== void 0 ? _a : {})
+            };
+            if (dto.agentVersion) {
+                rawPayload.agentVersion = dto.agentVersion;
+            }
+            if (dto.configVersion) {
+                rawPayload.configVersion = dto.configVersion;
+            }
+            if (dto.updateStatus) {
+                rawPayload.updateStatus = dto.updateStatus;
+            }
+            if (dto.lastUpdateCheckAt) {
+                rawPayload.lastUpdateCheckAt = dto.lastUpdateCheckAt;
+            }
+            const hasRawPayload = Object.keys(rawPayload).length > 0;
             return tx.serverTelemetry.create({
                 data: {
                     serverId: agent.serverId,
                     agentId: agent.agentId,
-                    cpuPercent: (_a = dto.cpuPercent) !== null && _a !== void 0 ? _a : null,
-                    memoryPercent: (_b = dto.memoryPercent) !== null && _b !== void 0 ? _b : null,
-                    diskPercent: (_c = dto.diskPercent) !== null && _c !== void 0 ? _c : null,
-                    rawJson: dto.raw ? dto.raw : undefined,
+                    cpuPercent: (_b = dto.cpuPercent) !== null && _b !== void 0 ? _b : null,
+                    memoryPercent: (_c = dto.memoryPercent) !== null && _c !== void 0 ? _c : null,
+                    diskPercent: (_d = dto.diskPercent) !== null && _d !== void 0 ? _d : null,
+                    rawJson: hasRawPayload ? rawPayload : undefined,
                     creditsCharged: credit_costs_1.CREDIT_COST_SERVER_TELEMETRY
                 },
                 select: {

@@ -27,6 +27,7 @@ export declare class ServerController {
             cpuPercent: number | null;
             memoryPercent: number | null;
             diskPercent: number | null;
+            rawJson: import("@prisma/client/runtime/library").JsonValue;
             collectedAt: Date;
         }[];
     }[]>;
@@ -57,11 +58,6 @@ export declare class ServerController {
         }[];
         scans: {
             id: string;
-            creditsCharged: number | null;
-            agent: {
-                id: string;
-                status: import(".prisma/client").$Enums.ServerAgentStatus;
-            } | null;
             status: import(".prisma/client").$Enums.ServerScanStatus;
             playbook: string;
             parameters: import("@prisma/client/runtime/library").JsonValue;
@@ -69,12 +65,18 @@ export declare class ServerController {
             startedAt: Date | null;
             completedAt: Date | null;
             failureReason: string | null;
+            creditsCharged: number | null;
+            agent: {
+                id: string;
+                status: import(".prisma/client").$Enums.ServerAgentStatus;
+            } | null;
         }[];
         telemetry: {
             id: string;
             cpuPercent: number | null;
             memoryPercent: number | null;
             diskPercent: number | null;
+            rawJson: import("@prisma/client/runtime/library").JsonValue;
             collectedAt: Date;
         }[];
     }>;
@@ -105,11 +107,6 @@ export declare class ServerController {
         }[];
         scans: {
             id: string;
-            creditsCharged: number | null;
-            agent: {
-                id: string;
-                status: import(".prisma/client").$Enums.ServerAgentStatus;
-            } | null;
             status: import(".prisma/client").$Enums.ServerScanStatus;
             playbook: string;
             parameters: import("@prisma/client/runtime/library").JsonValue;
@@ -117,12 +114,18 @@ export declare class ServerController {
             startedAt: Date | null;
             completedAt: Date | null;
             failureReason: string | null;
+            creditsCharged: number | null;
+            agent: {
+                id: string;
+                status: import(".prisma/client").$Enums.ServerAgentStatus;
+            } | null;
         }[];
         telemetry: {
             id: string;
             cpuPercent: number | null;
             memoryPercent: number | null;
             diskPercent: number | null;
+            rawJson: import("@prisma/client/runtime/library").JsonValue;
             collectedAt: Date;
         }[];
     }>;
@@ -153,11 +156,6 @@ export declare class ServerController {
         }[];
         scans: {
             id: string;
-            creditsCharged: number | null;
-            agent: {
-                id: string;
-                status: import(".prisma/client").$Enums.ServerAgentStatus;
-            } | null;
             status: import(".prisma/client").$Enums.ServerScanStatus;
             playbook: string;
             parameters: import("@prisma/client/runtime/library").JsonValue;
@@ -165,12 +163,18 @@ export declare class ServerController {
             startedAt: Date | null;
             completedAt: Date | null;
             failureReason: string | null;
+            creditsCharged: number | null;
+            agent: {
+                id: string;
+                status: import(".prisma/client").$Enums.ServerAgentStatus;
+            } | null;
         }[];
         telemetry: {
             id: string;
             cpuPercent: number | null;
             memoryPercent: number | null;
             diskPercent: number | null;
+            rawJson: import("@prisma/client/runtime/library").JsonValue;
             collectedAt: Date;
         }[];
     }>;
@@ -201,11 +205,6 @@ export declare class ServerController {
         }[];
         scans: {
             id: string;
-            creditsCharged: number | null;
-            agent: {
-                id: string;
-                status: import(".prisma/client").$Enums.ServerAgentStatus;
-            } | null;
             status: import(".prisma/client").$Enums.ServerScanStatus;
             playbook: string;
             parameters: import("@prisma/client/runtime/library").JsonValue;
@@ -213,12 +212,18 @@ export declare class ServerController {
             startedAt: Date | null;
             completedAt: Date | null;
             failureReason: string | null;
+            creditsCharged: number | null;
+            agent: {
+                id: string;
+                status: import(".prisma/client").$Enums.ServerAgentStatus;
+            } | null;
         }[];
         telemetry: {
             id: string;
             cpuPercent: number | null;
             memoryPercent: number | null;
             diskPercent: number | null;
+            rawJson: import("@prisma/client/runtime/library").JsonValue;
             collectedAt: Date;
         }[];
     }>;
@@ -249,11 +254,6 @@ export declare class ServerController {
         }[];
         scans: {
             id: string;
-            creditsCharged: number | null;
-            agent: {
-                id: string;
-                status: import(".prisma/client").$Enums.ServerAgentStatus;
-            } | null;
             status: import(".prisma/client").$Enums.ServerScanStatus;
             playbook: string;
             parameters: import("@prisma/client/runtime/library").JsonValue;
@@ -261,12 +261,18 @@ export declare class ServerController {
             startedAt: Date | null;
             completedAt: Date | null;
             failureReason: string | null;
+            creditsCharged: number | null;
+            agent: {
+                id: string;
+                status: import(".prisma/client").$Enums.ServerAgentStatus;
+            } | null;
         }[];
         telemetry: {
             id: string;
             cpuPercent: number | null;
             memoryPercent: number | null;
             diskPercent: number | null;
+            rawJson: import("@prisma/client/runtime/library").JsonValue;
             collectedAt: Date;
         }[];
     }>;
@@ -275,6 +281,7 @@ export declare class ServerController {
         cpuPercent: number | null;
         memoryPercent: number | null;
         diskPercent: number | null;
+        rawJson: import("@prisma/client/runtime/library").JsonValue;
         collectedAt: Date;
     }[]>;
 }

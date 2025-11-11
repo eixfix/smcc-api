@@ -8,6 +8,7 @@ export declare class TaskController {
     constructor(taskService: TaskService);
     findAll(projectId: string, user: AuthenticatedUser): Promise<{
         id: string;
+        createdAt: Date;
         projectId: string;
         label: string;
         targetUrl: string;
@@ -18,11 +19,11 @@ export declare class TaskController {
         payload: string | null;
         customVus: number | null;
         durationSeconds: number | null;
-        createdAt: Date;
         updatedAt: Date;
     }[]>;
     create(projectId: string, payload: CreateTaskDto, user: AuthenticatedUser): Promise<{
         id: string;
+        createdAt: Date;
         projectId: string;
         label: string;
         targetUrl: string;
@@ -33,11 +34,11 @@ export declare class TaskController {
         payload: string | null;
         customVus: number | null;
         durationSeconds: number | null;
-        createdAt: Date;
         updatedAt: Date;
     }>;
     update(taskId: string, payload: UpdateTaskDto, user: AuthenticatedUser): Promise<{
         id: string;
+        createdAt: Date;
         projectId: string;
         label: string;
         targetUrl: string;
@@ -48,33 +49,32 @@ export declare class TaskController {
         payload: string | null;
         customVus: number | null;
         durationSeconds: number | null;
-        createdAt: Date;
         updatedAt: Date;
     }>;
     run(taskId: string, user: AuthenticatedUser): Promise<{
         id: string;
-        taskId: string;
         status: string;
         startedAt: Date;
         completedAt: Date | null;
         summaryJson: import("@prisma/client/runtime/library").JsonValue;
+        taskId: string;
     }>;
     findReports(taskId: string, user: AuthenticatedUser): Promise<{
         id: string;
-        taskId: string;
         status: string;
         startedAt: Date;
         completedAt: Date | null;
         summaryJson: import("@prisma/client/runtime/library").JsonValue;
+        taskId: string;
     }[]>;
     exportRecent(user: AuthenticatedUser, res: Response): Promise<void>;
     findRecent(user: AuthenticatedUser): Promise<({
         id: string;
-        taskId: string;
         status: string;
         startedAt: Date;
         completedAt: Date | null;
         summaryJson: import("@prisma/client/runtime/library").JsonValue;
+        taskId: string;
     } & {
         task: {
             id: string;

@@ -51,6 +51,7 @@ export declare class ServerService {
             cpuPercent: number | null;
             memoryPercent: number | null;
             diskPercent: number | null;
+            rawJson: Prisma.JsonValue;
             collectedAt: Date;
         }[];
     }>;
@@ -76,6 +77,7 @@ export declare class ServerService {
             cpuPercent: number | null;
             memoryPercent: number | null;
             diskPercent: number | null;
+            rawJson: Prisma.JsonValue;
             collectedAt: Date;
         }[];
     }[]>;
@@ -124,6 +126,7 @@ export declare class ServerService {
             cpuPercent: number | null;
             memoryPercent: number | null;
             diskPercent: number | null;
+            rawJson: Prisma.JsonValue;
             collectedAt: Date;
         }[];
     }>;
@@ -172,6 +175,7 @@ export declare class ServerService {
             cpuPercent: number | null;
             memoryPercent: number | null;
             diskPercent: number | null;
+            rawJson: Prisma.JsonValue;
             collectedAt: Date;
         }[];
     }>;
@@ -220,6 +224,7 @@ export declare class ServerService {
             cpuPercent: number | null;
             memoryPercent: number | null;
             diskPercent: number | null;
+            rawJson: Prisma.JsonValue;
             collectedAt: Date;
         }[];
     }>;
@@ -228,6 +233,7 @@ export declare class ServerService {
         cpuPercent: number | null;
         memoryPercent: number | null;
         diskPercent: number | null;
+        rawJson: Prisma.JsonValue;
         collectedAt: Date;
     }[]>;
     ensureServerOwnerAccess(serverId: string, user: AuthenticatedUser): Promise<{

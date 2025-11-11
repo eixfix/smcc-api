@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types/auth-user';
@@ -9,7 +10,8 @@ export declare class ServerAgentService {
     private readonly prisma;
     private readonly serverService;
     private readonly jwtService;
-    constructor(prisma: PrismaService, serverService: ServerService, jwtService: JwtService);
+    private readonly configService;
+    constructor(prisma: PrismaService, serverService: ServerService, jwtService: JwtService, configService: ConfigService);
     mintAgentToken(serverId: string, dto: CreateServerAgentDto, user: AuthenticatedUser): Promise<{
         agent: {
             id: string;
@@ -57,5 +59,49 @@ export declare class ServerAgentService {
     }>;
     touchAgentHeartbeat(agentContext: AgentSessionContext): Promise<void>;
     private generateAccessKey;
+    getRemoteConfig(agent: AgentSessionContext): {
+        signature: string;
+        version: string;
+        issuedAt: string;
+        serverId: string;
+        settings: {
+            apiUrl: string;
+            pollIntervalSeconds: number;
+            telemetryIntervalMinutes: number;
+            updateIntervalMinutes: number;
+            refreshIntervalMinutes: number;
+            featureFlags: Record<string, boolean>;
+            credits: {
+                scan: number;
+                telemetry: number;
+            };
+        };
+    };
+    getUpdateManifest(agent: AgentSessionContext, currentVersion?: string): {
+        signature: string;
+        version: string;
+        channel: string;
+        issuedAt: string;
+        serverId: string;
+        minConfigVersion: string;
+        downloadUrl: string | null;
+        checksum: {
+            algorithm: string;
+            value: string;
+        } | null;
+        inlineSource: {
+            encoding: "base64";
+            data: string;
+        } | null;
+        restartRequired: boolean;
+        currentVersion: string | null;
+    };
+    private getApiUrl;
+    private getNumericEnv;
+    private getFeatureFlags;
+    private signPayload;
+    private getConfigSignatureKey;
+    private getUpdateSignatureKey;
+    private toKeyBuffer;
 }
 //# sourceMappingURL=server-agent.service.d.ts.map

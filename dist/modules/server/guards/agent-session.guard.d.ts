@@ -9,6 +9,7 @@ export interface AgentSessionPayload {
     type: 'agent-session';
     envelope?: string;
     envelopeVersion?: 'v1';
+    capabilities?: string[];
     exp?: number;
     iat?: number;
 }

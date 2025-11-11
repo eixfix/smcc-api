@@ -309,6 +309,28 @@ export class ServerScanService {
     const record = await this.prisma.$transaction(async (tx) => {
       await this.creditService.debitForTelemetry(server.organizationId, tx);
 
+      const rawPayload: Record<string, unknown> = {
+        ...(dto.raw ?? {})
+      };
+
+      if (dto.agentVersion) {
+        rawPayload.agentVersion = dto.agentVersion;
+      }
+
+      if (dto.configVersion) {
+        rawPayload.configVersion = dto.configVersion;
+      }
+
+      if (dto.updateStatus) {
+        rawPayload.updateStatus = dto.updateStatus;
+      }
+
+      if (dto.lastUpdateCheckAt) {
+        rawPayload.lastUpdateCheckAt = dto.lastUpdateCheckAt;
+      }
+
+      const hasRawPayload = Object.keys(rawPayload).length > 0;
+
       return tx.serverTelemetry.create({
         data: {
           serverId: agent.serverId,
@@ -316,7 +338,7 @@ export class ServerScanService {
           cpuPercent: dto.cpuPercent ?? null,
           memoryPercent: dto.memoryPercent ?? null,
           diskPercent: dto.diskPercent ?? null,
-          rawJson: dto.raw ? (dto.raw as Prisma.InputJsonValue) : undefined,
+          rawJson: hasRawPayload ? (rawPayload as Prisma.InputJsonValue) : undefined,
           creditsCharged: CREDIT_COST_SERVER_TELEMETRY
         },
         select: {

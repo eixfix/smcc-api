@@ -61,6 +61,9 @@ let AgentSessionGuard = class AgentSessionGuard {
                 serverId: payload.serverId,
                 organizationId: payload.organizationId
             };
+            request.agentCapabilities = Array.isArray(payload.capabilities)
+                ? payload.capabilities
+                : [];
             return true;
         }
         catch (error) {

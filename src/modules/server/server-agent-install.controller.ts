@@ -129,6 +129,14 @@ export class ServerAgentInstallController {
       this.configService.get<string>('AGENT_SCRIPT_VERSION') ?? '1.0.0';
     const defaultUpdateIntervalMinutes =
       Number(this.configService.get<string>('AGENT_DEFAULT_UPDATE_INTERVAL_MINUTES')) || 60;
+    const configSignatureKey =
+      this.configService.get<string>('AGENT_CONFIG_SIGNATURE_KEY') ??
+      this.configService.get<string>('AGENT_PAYLOAD_KEY') ??
+      '';
+    const updateSignatureKey =
+      this.configService.get<string>('AGENT_UPDATE_SIGNATURE_KEY') ?? configSignatureKey;
+    const configRefreshIntervalMinutes =
+      Number(this.configService.get<string>('AGENT_CONFIG_REFRESH_INTERVAL_MINUTES')) || 360;
 
     const metadataPath =
       this.configService.get<string>('AGENT_METADATA_PATH') ?? `${configPath}.meta.json`;
@@ -150,7 +158,10 @@ export class ServerAgentInstallController {
       defaultUpdateIntervalMinutes,
       derivedKey,
       installNonce,
-      logPrefix: serviceName
+      logPrefix: serviceName,
+      configSignatureKey,
+      updateSignatureKey,
+      configRefreshIntervalMinutes
     });
 
     return `#!/usr/bin/env bash

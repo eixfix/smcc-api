@@ -18,8 +18,11 @@ const client_1 = require("@prisma/client");
 const public_decorator_1 = require("../../common/decorators/public.decorator");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 const roles_decorator_1 = require("../../common/decorators/roles.decorator");
+const current_agent_decorator_1 = require("./decorators/current-agent.decorator");
 const agent_auth_dto_1 = require("./dto/agent-auth.dto");
 const create_server_agent_dto_1 = require("./dto/create-server-agent.dto");
+const agent_session_guard_1 = require("./guards/agent-session.guard");
+const agent_envelope_interceptor_1 = require("./interceptors/agent-envelope.interceptor");
 const server_agent_service_1 = require("./server-agent.service");
 const ip_utils_1 = require("../../common/utils/ip.utils");
 let ServerAgentController = class ServerAgentController {
@@ -35,6 +38,27 @@ let ServerAgentController = class ServerAgentController {
     authenticate(payload, request) {
         const clientIp = (0, ip_utils_1.extractClientIp)(request);
         return this.serverAgentService.authenticateAgent(payload, clientIp);
+    }
+    fetchConfig(request, agent) {
+        this.assertCapability(request, 'config_v1');
+        if (!agent) {
+            throw new common_1.ForbiddenException('Agent session missing from request context.');
+        }
+        return this.serverAgentService.getRemoteConfig(agent);
+    }
+    fetchUpdateManifest(request, agent, currentVersion) {
+        this.assertCapability(request, 'update_v1');
+        if (!agent) {
+            throw new common_1.ForbiddenException('Agent session missing from request context.');
+        }
+        return this.serverAgentService.getUpdateManifest(agent, currentVersion);
+    }
+    assertCapability(request, capability) {
+        var _a;
+        const capabilities = (_a = request.agentCapabilities) !== null && _a !== void 0 ? _a : [];
+        if (!capabilities.includes(capability)) {
+            throw new common_1.ForbiddenException(`Agent is missing required capability: ${capability}`);
+        }
     }
 };
 exports.ServerAgentController = ServerAgentController;
@@ -66,6 +90,29 @@ __decorate([
     __metadata("design:paramtypes", [agent_auth_dto_1.AgentAuthDto, Object]),
     __metadata("design:returntype", void 0)
 ], ServerAgentController.prototype, "authenticate", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('agent/config'),
+    (0, common_1.UseGuards)(agent_session_guard_1.AgentSessionGuard),
+    (0, common_1.UseInterceptors)(agent_envelope_interceptor_1.AgentEnvelopeInterceptor),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, current_agent_decorator_1.CurrentAgent)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], ServerAgentController.prototype, "fetchConfig", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('agent/update'),
+    (0, common_1.UseGuards)(agent_session_guard_1.AgentSessionGuard),
+    (0, common_1.UseInterceptors)(agent_envelope_interceptor_1.AgentEnvelopeInterceptor),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, current_agent_decorator_1.CurrentAgent)()),
+    __param(2, (0, common_1.Query)('currentVersion')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object, String]),
+    __metadata("design:returntype", void 0)
+], ServerAgentController.prototype, "fetchUpdateManifest", null);
 exports.ServerAgentController = ServerAgentController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [server_agent_service_1.ServerAgentService])
