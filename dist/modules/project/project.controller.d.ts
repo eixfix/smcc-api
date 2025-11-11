@@ -6,26 +6,26 @@ export declare class ProjectController {
     private readonly projectService;
     constructor(projectService: ProjectService);
     findAll(organizationId: string, user: AuthenticatedUser): Promise<{
-        name: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
         description: string | null;
         organizationId: string;
     }[]>;
     create(organizationId: string, payload: CreateProjectDto, user: AuthenticatedUser): Promise<{
-        name: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
         description: string | null;
         organizationId: string;
     }>;
     update(projectId: string, payload: UpdateProjectDto, user: AuthenticatedUser): Promise<{
-        name: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
         description: string | null;
         organizationId: string;
     }>;

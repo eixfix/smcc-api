@@ -7,14 +7,6 @@ export declare class ServerService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     create(payload: CreateServerDto, user: AuthenticatedUser): Promise<{
-        id: string;
-        name: string;
-        hostname: string | null;
-        allowedIp: string | null;
-        description: string | null;
-        isSuspended: boolean;
-        createdAt: Date;
-        updatedAt: Date;
         organization: {
             id: string;
             name: string;
@@ -23,22 +15,19 @@ export declare class ServerService {
             lastDebitAt: Date | null;
             scanSuspendedAt: Date | null;
         };
-        agents: {
-            id: string;
-            accessKey: string;
-            issuedAt: Date;
-            expiresAt: Date | null;
-            lastSeenAt: Date | null;
-            status: import(".prisma/client").$Enums.ServerAgentStatus;
-        }[];
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        description: string | null;
         scans: {
             id: string;
             status: import(".prisma/client").$Enums.ServerScanStatus;
+            startedAt: Date | null;
+            completedAt: Date | null;
             playbook: string;
             parameters: Prisma.JsonValue;
             queuedAt: Date;
-            startedAt: Date | null;
-            completedAt: Date | null;
             failureReason: string | null;
             creditsCharged: number | null;
             agent: {
@@ -53,17 +42,20 @@ export declare class ServerService {
             diskPercent: number | null;
             rawJson: Prisma.JsonValue;
             collectedAt: Date;
+        }[];
+        hostname: string | null;
+        allowedIp: string | null;
+        isSuspended: boolean;
+        agents: {
+            id: string;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
+            accessKey: string;
+            issuedAt: Date;
+            expiresAt: Date | null;
+            lastSeenAt: Date | null;
         }[];
     }>;
     findAll(user: AuthenticatedUser, organizationId?: string): Promise<{
-        id: string;
-        name: string;
-        hostname: string | null;
-        allowedIp: string | null;
-        description: string | null;
-        isSuspended: boolean;
-        createdAt: Date;
-        updatedAt: Date;
         organization: {
             id: string;
             name: string;
@@ -72,6 +64,11 @@ export declare class ServerService {
             lastDebitAt: Date | null;
             scanSuspendedAt: Date | null;
         };
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        description: string | null;
         telemetry: {
             id: string;
             cpuPercent: number | null;
@@ -80,16 +77,11 @@ export declare class ServerService {
             rawJson: Prisma.JsonValue;
             collectedAt: Date;
         }[];
-    }[]>;
-    findOne(id: string, user: AuthenticatedUser): Promise<{
-        id: string;
-        name: string;
         hostname: string | null;
         allowedIp: string | null;
-        description: string | null;
         isSuspended: boolean;
-        createdAt: Date;
-        updatedAt: Date;
+    }[]>;
+    findOne(id: string, user: AuthenticatedUser): Promise<{
         organization: {
             id: string;
             name: string;
@@ -98,22 +90,19 @@ export declare class ServerService {
             lastDebitAt: Date | null;
             scanSuspendedAt: Date | null;
         };
-        agents: {
-            id: string;
-            accessKey: string;
-            issuedAt: Date;
-            expiresAt: Date | null;
-            lastSeenAt: Date | null;
-            status: import(".prisma/client").$Enums.ServerAgentStatus;
-        }[];
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        description: string | null;
         scans: {
             id: string;
             status: import(".prisma/client").$Enums.ServerScanStatus;
+            startedAt: Date | null;
+            completedAt: Date | null;
             playbook: string;
             parameters: Prisma.JsonValue;
             queuedAt: Date;
-            startedAt: Date | null;
-            completedAt: Date | null;
             failureReason: string | null;
             creditsCharged: number | null;
             agent: {
@@ -128,17 +117,20 @@ export declare class ServerService {
             diskPercent: number | null;
             rawJson: Prisma.JsonValue;
             collectedAt: Date;
+        }[];
+        hostname: string | null;
+        allowedIp: string | null;
+        isSuspended: boolean;
+        agents: {
+            id: string;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
+            accessKey: string;
+            issuedAt: Date;
+            expiresAt: Date | null;
+            lastSeenAt: Date | null;
         }[];
     }>;
     update(id: string, payload: UpdateServerDto, user: AuthenticatedUser): Promise<{
-        id: string;
-        name: string;
-        hostname: string | null;
-        allowedIp: string | null;
-        description: string | null;
-        isSuspended: boolean;
-        createdAt: Date;
-        updatedAt: Date;
         organization: {
             id: string;
             name: string;
@@ -147,22 +139,19 @@ export declare class ServerService {
             lastDebitAt: Date | null;
             scanSuspendedAt: Date | null;
         };
-        agents: {
-            id: string;
-            accessKey: string;
-            issuedAt: Date;
-            expiresAt: Date | null;
-            lastSeenAt: Date | null;
-            status: import(".prisma/client").$Enums.ServerAgentStatus;
-        }[];
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        description: string | null;
         scans: {
             id: string;
             status: import(".prisma/client").$Enums.ServerScanStatus;
+            startedAt: Date | null;
+            completedAt: Date | null;
             playbook: string;
             parameters: Prisma.JsonValue;
             queuedAt: Date;
-            startedAt: Date | null;
-            completedAt: Date | null;
             failureReason: string | null;
             creditsCharged: number | null;
             agent: {
@@ -177,17 +166,20 @@ export declare class ServerService {
             diskPercent: number | null;
             rawJson: Prisma.JsonValue;
             collectedAt: Date;
+        }[];
+        hostname: string | null;
+        allowedIp: string | null;
+        isSuspended: boolean;
+        agents: {
+            id: string;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
+            accessKey: string;
+            issuedAt: Date;
+            expiresAt: Date | null;
+            lastSeenAt: Date | null;
         }[];
     }>;
     setSuspension(id: string, isSuspended: boolean, user: AuthenticatedUser): Promise<{
-        id: string;
-        name: string;
-        hostname: string | null;
-        allowedIp: string | null;
-        description: string | null;
-        isSuspended: boolean;
-        createdAt: Date;
-        updatedAt: Date;
         organization: {
             id: string;
             name: string;
@@ -196,22 +188,19 @@ export declare class ServerService {
             lastDebitAt: Date | null;
             scanSuspendedAt: Date | null;
         };
-        agents: {
-            id: string;
-            accessKey: string;
-            issuedAt: Date;
-            expiresAt: Date | null;
-            lastSeenAt: Date | null;
-            status: import(".prisma/client").$Enums.ServerAgentStatus;
-        }[];
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        description: string | null;
         scans: {
             id: string;
             status: import(".prisma/client").$Enums.ServerScanStatus;
+            startedAt: Date | null;
+            completedAt: Date | null;
             playbook: string;
             parameters: Prisma.JsonValue;
             queuedAt: Date;
-            startedAt: Date | null;
-            completedAt: Date | null;
             failureReason: string | null;
             creditsCharged: number | null;
             agent: {
@@ -226,6 +215,17 @@ export declare class ServerService {
             diskPercent: number | null;
             rawJson: Prisma.JsonValue;
             collectedAt: Date;
+        }[];
+        hostname: string | null;
+        allowedIp: string | null;
+        isSuspended: boolean;
+        agents: {
+            id: string;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
+            accessKey: string;
+            issuedAt: Date;
+            expiresAt: Date | null;
+            lastSeenAt: Date | null;
         }[];
     }>;
     listTelemetry(serverId: string, user: AuthenticatedUser, limit?: number): Promise<{

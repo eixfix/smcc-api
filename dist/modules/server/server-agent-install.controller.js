@@ -17,14 +17,14 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const jwt_1 = require("@nestjs/jwt");
 const client_1 = require("@prisma/client");
-const node_crypto_1 = require("node:crypto");
 const public_decorator_1 = require("../../common/decorators/public.decorator");
 const roles_decorator_1 = require("../../common/decorators/roles.decorator");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const server_service_1 = require("./server.service");
 const ip_utils_1 = require("../../common/utils/ip.utils");
-const agent_bootstrap_template_1 = require("./templates/agent-bootstrap.template");
+const current_agent_decorator_1 = require("./decorators/current-agent.decorator");
+const agent_session_guard_1 = require("./guards/agent-session.guard");
 let ServerAgentInstallController = class ServerAgentInstallController {
     constructor(configService, jwtService, prisma, serverService) {
         this.configService = configService;
@@ -38,11 +38,9 @@ let ServerAgentInstallController = class ServerAgentInstallController {
         const ttlMinutes = Number(this.configService.get('AGENT_INSTALL_TOKEN_TTL_MINUTES')) || 60;
         const secret = this.configService.get('AGENT_INSTALL_TOKEN_SECRET') ||
             this.configService.get('JWT_SECRET');
-        const nonce = (0, node_crypto_1.randomBytes)(16).toString('base64url');
         const token = await this.jwtService.signAsync({
             type: 'install-script',
-            serverId,
-            nonce
+            serverId
         }, {
             secret,
             expiresIn: `${ttlMinutes}m`
@@ -52,12 +50,11 @@ let ServerAgentInstallController = class ServerAgentInstallController {
         return {
             installUrl,
             command: `curl -fsSL ${installUrl} | sudo bash`,
-            expiresInMinutes: ttlMinutes,
-            nonce
+            expiresInMinutes: ttlMinutes
         };
     }
     async getInstallScript(token, request) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+        var _a, _b, _c, _d, _e, _f;
         const secret = this.configService.get('AGENT_INSTALL_TOKEN_SECRET') ||
             this.configService.get('JWT_SECRET');
         let payload;
@@ -92,31 +89,11 @@ let ServerAgentInstallController = class ServerAgentInstallController {
         const apiPublicUrl = (_e = this.configService.get('API_PUBLIC_URL')) !== null && _e !== void 0 ? _e : 'https://api.loadtest.dev';
         const agentVersion = (_f = this.configService.get('AGENT_SCRIPT_VERSION')) !== null && _f !== void 0 ? _f : '1.0.0';
         const defaultUpdateIntervalMinutes = Number(this.configService.get('AGENT_DEFAULT_UPDATE_INTERVAL_MINUTES')) || 60;
-        const configSignatureKey = (_h = (_g = this.configService.get('AGENT_CONFIG_SIGNATURE_KEY')) !== null && _g !== void 0 ? _g : this.configService.get('AGENT_PAYLOAD_KEY')) !== null && _h !== void 0 ? _h : '';
-        const updateSignatureKey = (_j = this.configService.get('AGENT_UPDATE_SIGNATURE_KEY')) !== null && _j !== void 0 ? _j : configSignatureKey;
-        const configRefreshIntervalMinutes = Number(this.configService.get('AGENT_CONFIG_REFRESH_INTERVAL_MINUTES')) || 360;
-        const metadataPath = (_k = this.configService.get('AGENT_METADATA_PATH')) !== null && _k !== void 0 ? _k : `${configPath}.meta.json`;
-        const derivedKey = (0, node_crypto_1.randomBytes)(32).toString('base64');
-        const installNonce = (_l = payload.nonce) !== null && _l !== void 0 ? _l : (0, node_crypto_1.randomBytes)(12).toString('base64url');
         const serviceUnitPath = `/etc/systemd/system/${serviceName}.service`;
         const installDirEscaped = installDir.replace(/"/g, '\\"');
         const binPathEscaped = binPath.replace(/"/g, '\\"');
         const configPathEscaped = configPath.replace(/"/g, '\\"');
-        const metadataPathEscaped = metadataPath.replace(/"/g, '\\"');
-        const agentScript = (0, agent_bootstrap_template_1.buildAgentBootstrapTemplate)({
-            apiUrl: apiPublicUrl,
-            configPath,
-            metadataPath,
-            binaryPath: binPath,
-            agentVersion,
-            defaultUpdateIntervalMinutes,
-            derivedKey,
-            installNonce,
-            logPrefix: serviceName,
-            configSignatureKey,
-            updateSignatureKey,
-            configRefreshIntervalMinutes
-        });
+        const agentScript = this.buildAgentSource(apiPublicUrl, configPath, agentVersion, defaultUpdateIntervalMinutes, binPath);
         return `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -124,7 +101,6 @@ echo "[loadtest] Installing agent files..."
 INSTALL_DIR="${installDirEscaped}"
 BIN_PATH="${binPathEscaped}"
 CONFIG_PATH="${configPathEscaped}"
-METADATA_PATH="${metadataPathEscaped}"
 SERVICE_NAME="${serviceName}"
 SERVICE_PATH="${serviceUnitPath}"
 
@@ -136,72 +112,19 @@ LOADTEST_AGENT_SOURCE
 
 install -m 755 "$INSTALL_DIR/loadtest-agent.js" "$BIN_PATH"
 install -d -m 755 "$(dirname "$CONFIG_PATH")"
-install -d -m 755 "$(dirname "$METADATA_PATH")"
-
-LT_AGENT_CONFIG_PATH="$CONFIG_PATH" \
-LT_AGENT_METADATA_PATH="$METADATA_PATH" \
-LT_AGENT_DERIVED_KEY="${derivedKey}" \
-LT_AGENT_INSTALL_NONCE="${installNonce}" \
-LT_AGENT_VERSION="${agentVersion}" \
-LT_AGENT_SERVER_ID="${server.id}" \
-LT_AGENT_API_URL="${apiPublicUrl}" \
-LT_AGENT_POLL_INTERVAL="30" \
-LT_AGENT_TELEMETRY_INTERVAL="60" \
-LT_AGENT_UPDATE_INTERVAL="${defaultUpdateIntervalMinutes}" \
-node <<'LOADTEST_ENCRYPT_CONFIG'
-const crypto = require('node:crypto');
-const fs = require('node:fs');
-
-const configPath = process.env.LT_AGENT_CONFIG_PATH;
-const metadataPath = process.env.LT_AGENT_METADATA_PATH;
-const derivedKeyB64 = process.env.LT_AGENT_DERIVED_KEY;
-const installNonce = process.env.LT_AGENT_INSTALL_NONCE || '';
-const agentVersion = process.env.LT_AGENT_VERSION || 'unknown';
-
-const derivedKey = Buffer.from(derivedKeyB64, 'base64');
-
-const metadata = {
-  install_nonce: installNonce,
-  derived_key: derivedKeyB64,
-  generated_at: new Date().toISOString(),
-  script_version: agentVersion
-};
-
-fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), { mode: 0o600 });
-
-function encrypt(key, buffer) {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const ciphertext = Buffer.concat([cipher.update(buffer), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return {
-    algorithm: 'aes-256-gcm',
-    iv: iv.toString('base64'),
-    tag: tag.toString('base64'),
-    data: ciphertext.toString('base64')
-  };
-}
-
-const dataKey = crypto.randomBytes(32);
-const configPayload = {
-  serverId: process.env.LT_AGENT_SERVER_ID,
-  accessKey: '<access-key>',
-  secret: '<secret>',
-  apiUrl: process.env.LT_AGENT_API_URL,
-  pollIntervalSeconds: Number(process.env.LT_AGENT_POLL_INTERVAL || '30'),
-  telemetryIntervalMinutes: Number(process.env.LT_AGENT_TELEMETRY_INTERVAL || '60'),
-  updateIntervalMinutes: Number(process.env.LT_AGENT_UPDATE_INTERVAL || '60'),
-  logLevel: 'info'
-};
-
-const document = {
-  version: 2,
-  encryptedConfig: encrypt(dataKey, Buffer.from(JSON.stringify(configPayload), 'utf8')),
-  wrappedKey: encrypt(derivedKey, dataKey)
-};
-
-fs.writeFileSync(configPath, JSON.stringify(document, null, 2), { mode: 0o600 });
-LOADTEST_ENCRYPT_CONFIG
+if [ ! -f "$CONFIG_PATH" ]; then
+  cat <<'EOF' > "$CONFIG_PATH"
+server_id: "${server.id}"
+agent_access_key: "<access-key>"
+agent_secret: "<secret>"
+api_url: "${apiPublicUrl}"
+poll_interval_seconds: 30
+telemetry_interval_minutes: 60
+update_interval_minutes: ${defaultUpdateIntervalMinutes}
+log_level: info
+EOF
+  chmod 600 "$CONFIG_PATH"
+fi
 
 cat <<EOF > "$SERVICE_PATH"
 [Unit]
@@ -223,6 +146,18 @@ systemctl enable --now "$SERVICE_NAME"
 
 echo "[loadtest] Agent installed. Update $CONFIG_PATH with real credentials before restarting."
 `;
+    }
+    getAgentScript(_agent) {
+        var _a, _b, _c, _d;
+        const apiPublicUrl = (_a = this.configService.get('API_PUBLIC_URL')) !== null && _a !== void 0 ? _a : 'https://api.loadtest.dev';
+        const configPath = (_b = this.configService.get('AGENT_CONFIG_PATH')) !== null && _b !== void 0 ? _b : '/etc/loadtest-agent/config.yaml';
+        const agentVersion = (_c = this.configService.get('AGENT_SCRIPT_VERSION')) !== null && _c !== void 0 ? _c : '1.0.0';
+        const defaultUpdateIntervalMinutes = Number(this.configService.get('AGENT_DEFAULT_UPDATE_INTERVAL_MINUTES')) || 60;
+        const binPath = (_d = this.configService.get('AGENT_BINARY_PATH')) !== null && _d !== void 0 ? _d : '/usr/local/bin/loadtest-agent';
+        return {
+            version: agentVersion,
+            source: this.buildAgentSource(apiPublicUrl, configPath, agentVersion, defaultUpdateIntervalMinutes, binPath)
+        };
     }
     buildAgentSource(apiUrl, configPath, agentVersion, defaultUpdateIntervalMinutes, binaryPath) {
         const escapedApiUrl = apiUrl.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
@@ -455,6 +390,15 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], ServerAgentInstallController.prototype, "getInstallScript", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.UseGuards)(agent_session_guard_1.AgentSessionGuard),
+    (0, common_1.Get)('agent/script'),
+    __param(0, (0, current_agent_decorator_1.CurrentAgent)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], ServerAgentInstallController.prototype, "getAgentScript", null);
 exports.ServerAgentInstallController = ServerAgentInstallController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [config_1.ConfigService,

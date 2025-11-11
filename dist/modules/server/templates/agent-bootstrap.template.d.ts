@@ -1,17 +1,119 @@
-interface AgentBootstrapTemplateOptions {
-    apiUrl: string;
-    configPath: string;
-    metadataPath: string;
-    binaryPath: string;
-    agentVersion: string;
-    defaultUpdateIntervalMinutes: number;
-    derivedKey: string;
-    installNonce: string;
-    logPrefix: string;
-    configSignatureKey: string;
-    updateSignatureKey: string;
-    configRefreshIntervalMinutes: number;
-}
-export declare function buildAgentBootstrapTemplate({ apiUrl, configPath, metadataPath, binaryPath, agentVersion, defaultUpdateIntervalMinutes, derivedKey, installNonce, logPrefix, configSignatureKey, updateSignatureKey, configRefreshIntervalMinutes }: AgentBootstrapTemplateOptions): string;
-export {};
+declare const sanitizeLiteral: (value: string) => string;
+declare const crypto: any;
+declare const fs: any;
+declare const execSync: any;
+declare const os: any;
+declare const DEFAULT_CONFIG_PATH: string;
+declare const DEFAULT_METADATA_PATH: string;
+declare const DEFAULT_API_URL = "${escapedApiUrl}";
+declare const AGENT_VERSION = "${agentVersion}";
+declare const AGENT_FILE_PATH: string;
+declare const DEFAULT_UPDATE_INTERVAL_MINUTES: any, defaultUpdateIntervalMinutes: any;
+declare const FALLBACK_DERIVED_KEY_B64 = "${escapedDerivedKey}";
+declare const INSTALL_NONCE = "${escapedInstallNonce}";
+declare const LOG_PREFIX = "[${escapedLogPrefix}]";
+declare const CONFIG_SIGNATURE_KEY_B64 = "${escapedConfigSignatureKey}";
+declare const UPDATE_SIGNATURE_KEY_B64 = "${escapedUpdateSignatureKey}";
+declare const CONFIG_REFRESH_INTERVAL_MINUTES: number;
+declare const CONFIG_SIGNATURE_KEY: Buffer<ArrayBuffer> | null;
+declare const UPDATE_SIGNATURE_KEY: Buffer<ArrayBuffer> | null;
+declare let sessionEnvelope: null;
+declare let configFailureCount: number;
+declare let updateFailureCount: number;
+declare let lastConfigSyncAt: number;
+declare let lastUpdateCheckAt: number;
+declare function logInfo(message: any): void;
+declare function logError(message: any, error: any): void;
+declare const updateState: {
+    status: string;
+    targetVersion: string;
+    lastAttemptAt: null;
+    lastError: null;
+};
+declare const CLI_ARGS: string[];
+declare function encryptEnvelopePayload(key: any, payload: any): {
+    ciphertext: string;
+    iv: any;
+    tag: any;
+};
+declare function decryptEnvelopePayload(key: any, payload: any): any;
+declare function ensureSignatureKey(scope: any): Buffer<ArrayBuffer>;
+declare function verifySignedDocument(scope: any, document: any): any;
+declare function ensureMetadata(): void;
+declare function loadMetadata(): any;
+declare function deriveKeyFromMetadata(metadata: any): Buffer<ArrayBuffer>;
+declare function encryptConfigDocument(metadata: any, configObj: any): {
+    version: number;
+    encryptedConfig: {
+        algorithm: string;
+        iv: any;
+        tag: any;
+        data: string;
+    };
+    wrappedKey: {
+        algorithm: string;
+        iv: any;
+        tag: any;
+        data: string;
+    };
+};
+declare function decryptConfigDocument(metadata: any, document: any): any;
+declare function parseLegacyConfig(content: any): {};
+declare function normalizeConfigShape(source: any): {
+    serverId: any;
+    accessKey: any;
+    secret: any;
+    apiUrl: any;
+    pollIntervalSeconds: number;
+    telemetryIntervalMinutes: number;
+    updateIntervalMinutes: number;
+    refreshIntervalMinutes: number;
+    featureFlags: any;
+    configVersion: any;
+    logLevel: any;
+};
+declare function deriveIntervals(config: any): {
+    pollIntervalMs: number;
+    telemetryIntervalMs: number;
+    updateIntervalMs: number;
+    configRefreshIntervalMs: number;
+};
+declare function loadConfig(): {
+    serverId: any;
+    accessKey: any;
+    secret: any;
+    apiUrl: any;
+    pollIntervalSeconds: number;
+    telemetryIntervalMinutes: number;
+    updateIntervalMinutes: number;
+    refreshIntervalMinutes: number;
+    featureFlags: any;
+    configVersion: any;
+    logLevel: any;
+};
+declare function saveEncryptedConfig(configObj: any): void;
+declare function parseCliArgs(argv: any): {};
+declare function handleConfigCommand(argv: any): void;
+declare function sleep(ms: any): Promise<unknown>;
+declare function agentFetch(apiBaseUrl: any, path: any, token: any, options?: {}): Promise<any>;
+declare function fetchRemoteConfigDocument(apiBaseUrl: any, token: any): Promise<any>;
+declare function mergeRemoteConfig(current: any, remote: any): any;
+declare function fetchUpdateManifestDocument(apiBaseUrl: any, token: any, currentVersion: any): Promise<any>;
+declare function resolveUpdateArtifact(manifest: any): Promise<Buffer<ArrayBuffer>>;
+declare function validateChecksum(manifest: any, buffer: any): void;
+declare function swapAgentBinary(buffer: any): string | null;
+declare function authenticate(config: any, apiBaseUrl: any): Promise<any>;
+declare function fetchLatestAgent(): Promise<null>;
+declare function attemptSelfUpdate(apiBaseUrl: any, token: any, config: any): Promise<boolean>;
+declare function fetchNextScan(apiBaseUrl: any, token: any): Promise<any>;
+declare function reportScanFailure(apiBaseUrl: any, token: any, scanId: any, reason: any): Promise<void>;
+declare function sendTelemetry(apiBaseUrl: any, token: any, config: any): Promise<void>;
+declare function readProcStat(): {
+    idle: number;
+    total: number;
+};
+declare function calculateCpuPercent(): number | null;
+declare function calculateMemoryPercent(): number | null;
+declare function calculateDiskPercent(): number | null;
+declare function main(): Promise<void>;
 //# sourceMappingURL=agent-bootstrap.template.d.ts.map

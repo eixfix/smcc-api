@@ -8,10 +8,10 @@ export declare class OrganizationController {
     private readonly organizationService;
     constructor(organizationService: OrganizationService);
     findAll(user: AuthenticatedUser): Promise<({
-        name: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
         slug: string;
         credits: number;
         lastCreditedAt: Date;
@@ -24,10 +24,10 @@ export declare class OrganizationController {
         };
     })[]>;
     findOne(id: string, user: AuthenticatedUser): Promise<{
-        name: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
         slug: string;
         credits: number;
         lastCreditedAt: Date;
@@ -36,10 +36,10 @@ export declare class OrganizationController {
         ownerId: string | null;
     } | null>;
     create(payload: CreateOrganizationDto): Promise<{
-        name: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
         slug: string;
         credits: number;
         lastCreditedAt: Date;
@@ -58,10 +58,10 @@ export declare class OrganizationController {
         };
     }>;
     update(id: string, payload: UpdateOrganizationDto): Promise<{
-        name: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
         slug: string;
         credits: number;
         lastCreditedAt: Date;
