@@ -43,7 +43,7 @@ export function buildAgentBootstrapTemplate({
     ? configRefreshIntervalMinutes
     : 360;
 
-  return `#!/usr/bin/env node
+  return String.raw`#!/usr/bin/env node
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const { execSync } = require('node:child_process');
