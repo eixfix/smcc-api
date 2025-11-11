@@ -482,18 +482,6 @@ function calculateMemoryPercent() {
   }
 }
 
-function resolveDfOutput() {
-  const candidates = ['/bin/df', '/usr/bin/df', 'df'];
-  for (const cmd of candidates) {
-    try {
-      return execSync(`${cmd} -P /`, { encoding: 'utf8' });
-    } catch {
-      // try next candidate
-    }
-  }
-  throw new Error('df command unavailable');
-}
-
 function calculateDiskPercent() {
   try {
     if (typeof fs.statfsSync === 'function') {

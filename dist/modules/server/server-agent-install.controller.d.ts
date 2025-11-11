@@ -4,7 +4,6 @@ import type { Request } from 'express';
 import type { AuthenticatedUser } from '../../common/types/auth-user';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ServerService } from './server.service';
-import type { AgentSessionContext } from './guards/agent-session.guard';
 export declare class ServerAgentInstallController {
     private readonly configService;
     private readonly jwtService;
@@ -15,12 +14,9 @@ export declare class ServerAgentInstallController {
         installUrl: string;
         command: string;
         expiresInMinutes: number;
+        nonce: string;
     }>;
     getInstallScript(token: string, request: Request): Promise<string>;
-    getAgentScript(_agent: AgentSessionContext): {
-        version: string;
-        source: string;
-    };
     private buildAgentSource;
 }
 //# sourceMappingURL=server-agent-install.controller.d.ts.map
