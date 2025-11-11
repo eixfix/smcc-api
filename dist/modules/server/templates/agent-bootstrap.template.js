@@ -478,7 +478,6 @@ async function authenticate(config, apiBaseUrl) {
   });
 
   if (!response.ok) {
-  if (!response.ok) {
     throw new Error('Agent auth failed: ' + response.status);
   }
   const session = await response.json();
@@ -696,7 +695,7 @@ function calculateDiskPercent() {
 async function main() {
   let config = loadConfig();
   let intervals = deriveIntervals(config);
-  let apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/$/, '');
+  let apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\\\/$/, '');
 
   console.log(LOG_PREFIX + " Starting agent loop");
   let sessionToken = null;
@@ -723,7 +722,7 @@ async function main() {
           if (remote && remote.version && remote.version !== config.configVersion) {
             config = mergeRemoteConfig(config, remote);
             intervals = deriveIntervals(config);
-            apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/$/, '');
+            apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\\\/$/, '');
           }
         } catch (error) {
           configFailureCount = Math.min(configFailureCount + 1, 4);
