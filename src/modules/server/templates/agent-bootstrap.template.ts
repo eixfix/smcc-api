@@ -477,7 +477,7 @@ function calculateMemoryPercent() {
 function calculateDiskPercent() {
   try {
     const output = execSync('df -P /', { encoding: 'utf8' });
-    const lines = output.trim().split(/\r?\n/);
+    const lines = output.trim().split(/\\r?\\n/);
     if (lines.length < 2) {
       return null;
     }
