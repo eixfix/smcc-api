@@ -1,5 +1,5 @@
 const sanitizeLiteral = (value: string): string =>
-  value.replace(/\\/g, "\\\\').replace(/`/g, "\\`');
+  value.replace(/\\/g, "\\\\").replace(/`/g, "\\`");
 
 interface AgentBootstrapTemplateOptions {
   apiUrl: string;
@@ -191,7 +191,7 @@ function loadMetadata() {
     const raw = fs.readFileSync(DEFAULT_METADATA_PATH, 'utf8');
     return JSON.parse(raw);
   } catch (error) {
-    logError('Failed to parse metadata:", error.message);
+    logError('Failed to parse metadata:', error.message);
     throw error;
   }
 }
@@ -368,7 +368,7 @@ function handleConfigCommand(argv) {
 
   for (const key of required) {
     if (!args[key]) {
-      logError('Missing --" + key + "=value');
+      logError('Missing --' + key + '=value');
       process.exit(1);
     }
   }
@@ -605,7 +605,7 @@ async function attemptSelfUpdate(apiBaseUrl, token, config) {
         // no-op
       }
     }
-    logError('Agent update failed:", error.message);
+    logError('Agent update failed:', error.message);
     return false;
   }
 }
@@ -801,7 +801,7 @@ async function main() {
         } catch (error) {
           configFailureCount = Math.min(configFailureCount + 1, 4);
           lastConfigSyncAt = Date.now();
-          logError('Remote config refresh failed:", error.message);
+          logError('Remote config refresh failed:', error.message);
         }
       }
 
@@ -835,7 +835,7 @@ async function main() {
         await sleep(intervals.pollIntervalMs);
       }
     } catch (error) {
-      logError('Error:", error.message);
+      logError('Error:', error.message);
       sessionToken = null;
       await sleep(Math.min(intervals.pollIntervalMs, 10_000));
     }
@@ -843,7 +843,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  logError('Fatal error:", error);
+  logError('Fatal error:', error);
   process.exit(1);
 });
 `;
