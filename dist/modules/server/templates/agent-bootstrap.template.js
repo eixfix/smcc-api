@@ -242,7 +242,7 @@ function parseCliArgs(argv) {
 
 function handleConfigCommand(argv) {
   const args = parseCliArgs(argv);
-  const required = ['server-id', 'access-key', 'secret', 'api-url'];
+  const required = ['server-id', 'access-key', 'secret'];
 
   for (const key of required) {
     if (!args[key]) {
