@@ -771,7 +771,7 @@ async function main() {
   let intervals = deriveIntervals(config);
   let apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/$/, '');
 
-  logInfo('Starting agent loop');
+  logInfo("Starting agent loop");
   let sessionToken = null;
   let tokenExpiresAt = 0;
   let lastTelemetryAt = 0;
