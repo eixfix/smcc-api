@@ -11,7 +11,9 @@ interface AgentBootstrapTemplateOptions {
     configSignatureKey: string;
     updateSignatureKey: string;
     configRefreshIntervalMinutes: number;
+    playbookConfigPath: string;
+    playbookTimeoutSeconds: number;
 }
-export declare function buildAgentBootstrapTemplate({ apiUrl, configPath, metadataPath, binaryPath, agentVersion, defaultUpdateIntervalMinutes, derivedKey, installNonce, logPrefix, configSignatureKey, updateSignatureKey, configRefreshIntervalMinutes }: AgentBootstrapTemplateOptions): string;
+export declare function buildAgentBootstrapTemplate({ apiUrl, configPath, metadataPath, binaryPath, agentVersion, defaultUpdateIntervalMinutes, derivedKey, installNonce, logPrefix, configSignatureKey, updateSignatureKey, configRefreshIntervalMinutes, playbookConfigPath, playbookTimeoutSeconds }: AgentBootstrapTemplateOptions): string;
 export {};
 //# sourceMappingURL=agent-bootstrap.template.d.ts.map

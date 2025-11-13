@@ -21,6 +21,7 @@ const roles_decorator_1 = require("../../common/decorators/roles.decorator");
 const current_agent_decorator_1 = require("./decorators/current-agent.decorator");
 const agent_auth_dto_1 = require("./dto/agent-auth.dto");
 const create_server_agent_dto_1 = require("./dto/create-server-agent.dto");
+const create_agent_update_manifest_dto_1 = require("./dto/create-agent-update-manifest.dto");
 const agent_session_guard_1 = require("./guards/agent-session.guard");
 const agent_envelope_interceptor_1 = require("./interceptors/agent-envelope.interceptor");
 const server_agent_service_1 = require("./server-agent.service");
@@ -52,6 +53,14 @@ let ServerAgentController = class ServerAgentController {
             throw new common_1.ForbiddenException('Agent session missing from request context.');
         }
         return this.serverAgentService.getUpdateManifest(agent, currentVersion);
+    }
+    publishUpdateManifest(payload, user) {
+        return this.serverAgentService.publishUpdateManifest(payload, user);
+    }
+    listUpdateManifests(user, limit) {
+        const parsed = limit ? Number.parseInt(limit, 10) : undefined;
+        const sanitized = parsed !== undefined && !Number.isNaN(parsed) ? parsed : undefined;
+        return this.serverAgentService.listUpdateManifests(user, sanitized);
     }
     assertCapability(request, capability) {
         var _a;
@@ -113,6 +122,24 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object, String]),
     __metadata("design:returntype", void 0)
 ], ServerAgentController.prototype, "fetchUpdateManifest", null);
+__decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMINISTRATOR),
+    (0, common_1.Post)('agents/update/manifest'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [create_agent_update_manifest_dto_1.CreateAgentUpdateManifestDto, Object]),
+    __metadata("design:returntype", void 0)
+], ServerAgentController.prototype, "publishUpdateManifest", null);
+__decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMINISTRATOR),
+    (0, common_1.Get)('agents/update/manifests'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ServerAgentController.prototype, "listUpdateManifests", null);
 exports.ServerAgentController = ServerAgentController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [server_agent_service_1.ServerAgentService])

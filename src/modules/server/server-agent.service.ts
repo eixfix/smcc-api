@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
@@ -6,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { ServerAgentStatus } from '@prisma/client';
+import { AgentUpdateManifest, Role, ServerAgentStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHmac, randomBytes } from 'crypto';
 
@@ -17,6 +18,7 @@ import type { AgentSessionContext } from './guards/agent-session.guard';
 import { ServerService } from './server.service';
 import { AgentAuthDto } from './dto/agent-auth.dto';
 import { CreateServerAgentDto } from './dto/create-server-agent.dto';
+import { CreateAgentUpdateManifestDto } from './dto/create-agent-update-manifest.dto';
 import {
   CREDIT_COST_SERVER_SCAN,
   CREDIT_COST_SERVER_TELEMETRY
@@ -311,46 +313,112 @@ export class ServerAgentService {
     };
   }
 
-  getUpdateManifest(agent: AgentSessionContext, currentVersion?: string) {
-    const version =
-      this.configService.get<string>('AGENT_UPDATE_VERSION') ??
-      this.configService.get<string>('AGENT_SCRIPT_VERSION') ??
-      '1.0.0';
-    const issuedAt = new Date().toISOString();
-    const downloadUrl =
-      this.configService.get<string>('AGENT_UPDATE_DOWNLOAD_URL') ?? null;
-    const checksum =
-      this.configService.get<string>('AGENT_UPDATE_CHECKSUM') ?? null;
-    const inlineSource =
-      this.configService.get<string>('AGENT_UPDATE_EMBEDDED_SOURCE_B64') ?? null;
+  async publishUpdateManifest(
+    dto: CreateAgentUpdateManifestDto,
+    user: AuthenticatedUser
+  ) {
+    this.ensureAdministrator(user);
 
-    const manifest = {
-      version,
-      channel: this.configService.get<string>('AGENT_UPDATE_CHANNEL') ?? 'stable',
-      issuedAt,
-      serverId: agent.serverId,
-      minConfigVersion:
-        this.configService.get<string>('AGENT_CONFIG_VERSION') ?? '1.0.0',
-      downloadUrl,
-      checksum: checksum
-        ? {
-            algorithm: 'sha256',
-            value: checksum
+    const downloadUrl = dto.downloadUrl?.trim() || null;
+    const inlineSource = dto.inlineSourceB64?.trim() || null;
+
+    if (!downloadUrl && !inlineSource) {
+      throw new BadRequestException(
+        'Provide either downloadUrl or inlineSourceB64 for the agent update.'
+      );
+    }
+
+    const checksumValue = dto.checksumValue?.trim() || null;
+    const checksumAlgorithm =
+      checksumValue !== null
+        ? dto.checksumAlgorithm?.trim() || 'sha256'
+        : null;
+
+    const record = await this.prisma.agentUpdateManifest.create({
+      data: {
+        version: dto.version.trim(),
+        channel: dto.channel.trim(),
+        downloadUrl,
+        inlineSourceB64: inlineSource,
+        checksumAlgorithm,
+        checksumValue,
+        restartRequired: dto.restartRequired ?? true,
+        minConfigVersion: dto.minConfigVersion?.trim() || null,
+        notes: dto.notes?.trim() || null,
+        createdById: user.userId ?? null
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            email: true,
+            name: true
           }
-        : null,
-      inlineSource: inlineSource
-        ? {
-          encoding: 'base64' as const,
-          data: inlineSource
         }
-        : null,
-      restartRequired: true,
-      currentVersion: currentVersion ?? null
-    };
+      }
+    });
+
+    return this.mapManifestForAdmin(record);
+  }
+
+  async listUpdateManifests(user: AuthenticatedUser, limit?: number) {
+    this.ensureAdministrator(user);
+    const take = Math.min(Math.max(limit ?? 20, 1), 100);
+    const records = await this.prisma.agentUpdateManifest.findMany({
+      orderBy: { createdAt: 'desc' },
+      take,
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            email: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    return records.map((record) => this.mapManifestForAdmin(record));
+  }
+
+  async getUpdateManifest(agent: AgentSessionContext, currentVersion?: string) {
+    const record = await this.prisma.agentUpdateManifest.findFirst({
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (record) {
+      if (currentVersion && record.version === currentVersion) {
+        return null;
+      }
+
+      const payload = this.buildManifestPayload({
+        version: record.version,
+        channel: record.channel,
+        issuedAt: record.createdAt.toISOString(),
+        serverId: agent.serverId,
+        minConfigVersion: record.minConfigVersion ?? this.getDefaultConfigVersion(),
+        downloadUrl: record.downloadUrl ?? null,
+        inlineSourceB64: record.inlineSourceB64 ?? null,
+        checksumAlgorithm: record.checksumAlgorithm ?? undefined,
+        checksumValue: record.checksumValue ?? undefined,
+        restartRequired: record.restartRequired,
+        currentVersion: currentVersion ?? null
+      });
+
+      return {
+        ...payload,
+        signature: this.signPayload(payload, false)
+      };
+    }
+
+    const legacyManifest = this.buildLegacyUpdateManifest(agent, currentVersion);
+    if (!legacyManifest) {
+      return null;
+    }
 
     return {
-      ...manifest,
-      signature: this.signPayload(manifest, false)
+      ...legacyManifest,
+      signature: this.signPayload(legacyManifest, false)
     };
   }
 
@@ -359,10 +427,126 @@ export class ServerAgentService {
     return url.replace(/\/$/, '');
   }
 
+  private getDefaultConfigVersion(): string {
+    return this.configService.get<string>('AGENT_CONFIG_VERSION') ?? '1.0.0';
+  }
+
+  private buildLegacyUpdateManifest(
+    agent: AgentSessionContext,
+    currentVersion?: string
+  ) {
+    const version =
+      this.configService.get<string>('AGENT_UPDATE_VERSION') ??
+      this.configService.get<string>('AGENT_SCRIPT_VERSION');
+    const downloadUrl =
+      this.configService.get<string>('AGENT_UPDATE_DOWNLOAD_URL') ?? null;
+    const inlineSource =
+      this.configService.get<string>('AGENT_UPDATE_EMBEDDED_SOURCE_B64') ?? null;
+
+    if (!version || (!downloadUrl && !inlineSource)) {
+      return null;
+    }
+
+    const checksum =
+      this.configService.get<string>('AGENT_UPDATE_CHECKSUM') ?? null;
+
+    return this.buildManifestPayload({
+      version,
+      channel: this.configService.get<string>('AGENT_UPDATE_CHANNEL') ?? 'stable',
+      issuedAt: new Date().toISOString(),
+      serverId: agent.serverId,
+      minConfigVersion: this.getDefaultConfigVersion(),
+      downloadUrl,
+      inlineSourceB64: inlineSource,
+      checksumAlgorithm: checksum ? 'sha256' : undefined,
+      checksumValue: checksum ?? undefined,
+      restartRequired: true,
+      currentVersion: currentVersion ?? null
+    });
+  }
+
   private getNumericEnv(key: string, fallback: number): number {
     const raw = this.configService.get<string>(key);
     const parsed = raw !== undefined ? Number(raw) : Number.NaN;
     return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private buildManifestPayload(options: {
+    version: string;
+    channel: string;
+    issuedAt: string;
+    serverId: string;
+    minConfigVersion: string;
+    downloadUrl: string | null;
+    inlineSourceB64?: string | null;
+    checksumAlgorithm?: string | null;
+    checksumValue?: string | null;
+    restartRequired?: boolean;
+    currentVersion: string | null;
+  }) {
+    const checksum =
+      options.checksumValue !== undefined && options.checksumValue !== null
+        ? {
+            algorithm: options.checksumAlgorithm ?? 'sha256',
+            value: options.checksumValue
+          }
+        : null;
+
+    const inlineSource =
+      options.inlineSourceB64 && options.inlineSourceB64.length > 0
+        ? {
+            encoding: 'base64' as const,
+            data: options.inlineSourceB64
+          }
+        : null;
+
+    return {
+      version: options.version,
+      channel: options.channel,
+      issuedAt: options.issuedAt,
+      serverId: options.serverId,
+      minConfigVersion: options.minConfigVersion,
+      downloadUrl: options.downloadUrl,
+      checksum,
+      inlineSource,
+      restartRequired: options.restartRequired ?? true,
+      currentVersion: options.currentVersion
+    };
+  }
+
+  private mapManifestForAdmin(
+    record: AgentUpdateManifest & {
+      createdBy?: {
+        id: string;
+        email: string;
+        name: string;
+      } | null;
+    }
+  ) {
+    return {
+      id: record.id,
+      version: record.version,
+      channel: record.channel,
+      downloadUrl: record.downloadUrl,
+      hasInlineSource: Boolean(record.inlineSourceB64),
+      checksum: record.checksumValue
+        ? {
+            algorithm: record.checksumAlgorithm ?? 'sha256',
+            value: record.checksumValue
+          }
+        : null,
+      restartRequired: record.restartRequired,
+      minConfigVersion: record.minConfigVersion,
+      notes: record.notes,
+      createdAt: record.createdAt.toISOString(),
+      createdBy: record.createdBy
+        ? {
+            id: record.createdBy.id,
+            email: record.createdBy.email,
+            name: record.createdBy.name
+          }
+        : null
+    };
   }
 
   private getFeatureFlags(): Record<string, boolean> {
@@ -435,5 +619,11 @@ export class ServerAgentService {
 
   private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  private ensureAdministrator(user: AuthenticatedUser): void {
+    if (user.role !== Role.ADMINISTRATOR) {
+      throw new ForbiddenException('Administrator privileges are required for this operation.');
+    }
   }
 }

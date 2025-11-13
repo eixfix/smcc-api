@@ -5,13 +5,20 @@ import type { Request } from 'express';
 import type { AuthenticatedUser } from '../src/common/types/auth-user';
 import { AgentAuthDto } from '../src/modules/server/dto/agent-auth.dto';
 import { CreateServerAgentDto } from '../src/modules/server/dto/create-server-agent.dto';
+import { CreateAgentUpdateManifestDto } from '../src/modules/server/dto/create-agent-update-manifest.dto';
 import { ServerAgentController } from '../src/modules/server/server-agent.controller';
 import { ServerAgentService } from '../src/modules/server/server-agent.service';
 import type { AgentSessionContext } from '../src/modules/server/guards/agent-session.guard';
 import { AgentSessionGuard } from '../src/modules/server/guards/agent-session.guard';
 
 type ServerAgentServiceMock = Record<
-  'mintAgentToken' | 'revokeAgent' | 'authenticateAgent' | 'getRemoteConfig' | 'getUpdateManifest',
+  | 'mintAgentToken'
+  | 'revokeAgent'
+  | 'authenticateAgent'
+  | 'getRemoteConfig'
+  | 'getUpdateManifest'
+  | 'publishUpdateManifest'
+  | 'listUpdateManifests',
   jest.Mock
 >;
 
@@ -19,6 +26,12 @@ const mockUser: AuthenticatedUser = {
   userId: 'user_1',
   email: 'owner@example.com',
   role: Role.OWNER
+};
+
+const adminUser: AuthenticatedUser = {
+  userId: 'admin_1',
+  email: 'admin@example.com',
+  role: Role.ADMINISTRATOR
 };
 
 describe('ServerAgentController', () => {
@@ -31,7 +44,9 @@ describe('ServerAgentController', () => {
       revokeAgent: jest.fn().mockResolvedValue({ revoked: true }),
       authenticateAgent: jest.fn().mockResolvedValue({ sessionToken: 'session' }),
       getRemoteConfig: jest.fn().mockReturnValue({ settings: {} }),
-      getUpdateManifest: jest.fn().mockReturnValue({ version: '1.0.1' })
+      getUpdateManifest: jest.fn().mockReturnValue({ version: '1.0.1' }),
+      publishUpdateManifest: jest.fn(),
+      listUpdateManifests: jest.fn()
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -94,14 +109,14 @@ describe('ServerAgentController', () => {
     expect(service.getRemoteConfig).toHaveBeenCalledWith(agent);
   });
 
-  it('fetches update manifest when capability present', () => {
+  it('fetches update manifest when capability present', async () => {
     const agent: AgentSessionContext = {
       agentId: 'agent',
       serverId: 'server',
       organizationId: 'org'
     };
 
-    controller.fetchUpdateManifest(
+    await controller.fetchUpdateManifest(
       {
         agentCapabilities: ['update_v1']
       } as unknown as Request & { agentCapabilities?: string[] },
@@ -110,5 +125,21 @@ describe('ServerAgentController', () => {
     );
 
     expect(service.getUpdateManifest).toHaveBeenCalledWith(agent, '1.0.0');
+  });
+
+  it('publishes an update manifest', async () => {
+    const payload = {
+      version: '1.2.3',
+      channel: 'stable',
+      downloadUrl: 'https://cdn.example.com/agent.tgz'
+    } as CreateAgentUpdateManifestDto;
+
+    await controller.publishUpdateManifest(payload, adminUser);
+    expect(service.publishUpdateManifest).toHaveBeenCalledWith(payload, adminUser);
+  });
+
+  it('lists update manifests with limit', async () => {
+    await controller.listUpdateManifests(adminUser, '5');
+    expect(service.listUpdateManifests).toHaveBeenCalledWith(adminUser, 5);
   });
 });

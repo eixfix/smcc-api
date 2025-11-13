@@ -17,21 +17,21 @@ export declare class ServerScanService {
     queueScan(serverId: string, dto: QueueServerScanDto, user: AuthenticatedUser): Promise<{
         result: {
             summaryJson: Prisma.JsonValue;
+            createdAt: Date;
             rawLog: string | null;
             storageMetricsJson: Prisma.JsonValue;
             memoryMetricsJson: Prisma.JsonValue;
             securityFindingsJson: Prisma.JsonValue;
-            createdAt: Date;
         } | null;
         id: string;
-        serverId: string;
-        agentId: string | null;
-        playbook: string;
-        parameters: Prisma.JsonValue;
         status: import(".prisma/client").$Enums.ServerScanStatus;
-        queuedAt: Date;
         startedAt: Date | null;
         completedAt: Date | null;
+        agentId: string | null;
+        serverId: string;
+        playbook: string;
+        parameters: Prisma.JsonValue;
+        queuedAt: Date;
         failureReason: string | null;
         creditsCharged: number | null;
         agent: {
@@ -43,21 +43,21 @@ export declare class ServerScanService {
     listScans(serverId: string, user: AuthenticatedUser): Promise<{
         result: {
             summaryJson: Prisma.JsonValue;
+            createdAt: Date;
             rawLog: string | null;
             storageMetricsJson: Prisma.JsonValue;
             memoryMetricsJson: Prisma.JsonValue;
             securityFindingsJson: Prisma.JsonValue;
-            createdAt: Date;
         } | null;
         id: string;
-        serverId: string;
-        agentId: string | null;
-        playbook: string;
-        parameters: Prisma.JsonValue;
         status: import(".prisma/client").$Enums.ServerScanStatus;
-        queuedAt: Date;
         startedAt: Date | null;
         completedAt: Date | null;
+        agentId: string | null;
+        serverId: string;
+        playbook: string;
+        parameters: Prisma.JsonValue;
+        queuedAt: Date;
         failureReason: string | null;
         creditsCharged: number | null;
         agent: {
@@ -73,8 +73,8 @@ export declare class ServerScanService {
             hostname: string | null;
         };
         organization: {
-            name: string;
             id: string;
+            name: string;
         };
         result: {
             summaryJson: Prisma.JsonValue;
@@ -83,11 +83,11 @@ export declare class ServerScanService {
             securityFindingsJson: Prisma.JsonValue;
         } | null;
         id: string;
-        playbook: string;
         status: import(".prisma/client").$Enums.ServerScanStatus;
-        queuedAt: Date;
         startedAt: Date | null;
         completedAt: Date | null;
+        playbook: string;
+        queuedAt: Date;
         failureReason: string | null;
         creditsCharged: number | null;
         agent: {
@@ -98,12 +98,12 @@ export declare class ServerScanService {
     }[]>;
     getNextQueuedScan(agent: AgentSessionContext): Promise<{
         id: string;
+        status: import(".prisma/client").$Enums.ServerScanStatus;
+        startedAt: Date | null;
         serverId: string;
         playbook: string;
         parameters: Prisma.JsonValue;
-        status: import(".prisma/client").$Enums.ServerScanStatus;
         queuedAt: Date;
-        startedAt: Date | null;
     } | null>;
     submitScanReport(agent: AgentSessionContext, scanId: string, dto: ReportServerScanDto): Promise<{
         id: string;
@@ -112,8 +112,8 @@ export declare class ServerScanService {
     }>;
     ingestTelemetry(agent: AgentSessionContext, dto: TelemetryPayloadDto): Promise<{
         id: string;
-        serverId: string;
         agentId: string | null;
+        serverId: string;
         creditsCharged: number | null;
         cpuPercent: number | null;
         memoryPercent: number | null;

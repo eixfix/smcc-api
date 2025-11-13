@@ -10,21 +10,21 @@ export declare class ServerScanController {
     queueScan(serverId: string, payload: QueueServerScanDto, user: AuthenticatedUser): Promise<{
         result: {
             summaryJson: import("@prisma/client/runtime/library").JsonValue;
+            createdAt: Date;
             rawLog: string | null;
             storageMetricsJson: import("@prisma/client/runtime/library").JsonValue;
             memoryMetricsJson: import("@prisma/client/runtime/library").JsonValue;
             securityFindingsJson: import("@prisma/client/runtime/library").JsonValue;
-            createdAt: Date;
         } | null;
         id: string;
-        serverId: string;
-        agentId: string | null;
-        playbook: string;
-        parameters: import("@prisma/client/runtime/library").JsonValue;
         status: import(".prisma/client").$Enums.ServerScanStatus;
-        queuedAt: Date;
         startedAt: Date | null;
         completedAt: Date | null;
+        agentId: string | null;
+        serverId: string;
+        playbook: string;
+        parameters: import("@prisma/client/runtime/library").JsonValue;
+        queuedAt: Date;
         failureReason: string | null;
         creditsCharged: number | null;
         agent: {
@@ -40,8 +40,8 @@ export declare class ServerScanController {
             hostname: string | null;
         };
         organization: {
-            name: string;
             id: string;
+            name: string;
         };
         result: {
             summaryJson: import("@prisma/client/runtime/library").JsonValue;
@@ -50,11 +50,11 @@ export declare class ServerScanController {
             securityFindingsJson: import("@prisma/client/runtime/library").JsonValue;
         } | null;
         id: string;
-        playbook: string;
         status: import(".prisma/client").$Enums.ServerScanStatus;
-        queuedAt: Date;
         startedAt: Date | null;
         completedAt: Date | null;
+        playbook: string;
+        queuedAt: Date;
         failureReason: string | null;
         creditsCharged: number | null;
         agent: {
@@ -66,21 +66,21 @@ export declare class ServerScanController {
     listScans(serverId: string, user: AuthenticatedUser): Promise<{
         result: {
             summaryJson: import("@prisma/client/runtime/library").JsonValue;
+            createdAt: Date;
             rawLog: string | null;
             storageMetricsJson: import("@prisma/client/runtime/library").JsonValue;
             memoryMetricsJson: import("@prisma/client/runtime/library").JsonValue;
             securityFindingsJson: import("@prisma/client/runtime/library").JsonValue;
-            createdAt: Date;
         } | null;
         id: string;
-        serverId: string;
-        agentId: string | null;
-        playbook: string;
-        parameters: import("@prisma/client/runtime/library").JsonValue;
         status: import(".prisma/client").$Enums.ServerScanStatus;
-        queuedAt: Date;
         startedAt: Date | null;
         completedAt: Date | null;
+        agentId: string | null;
+        serverId: string;
+        playbook: string;
+        parameters: import("@prisma/client/runtime/library").JsonValue;
+        queuedAt: Date;
         failureReason: string | null;
         creditsCharged: number | null;
         agent: {
@@ -91,12 +91,12 @@ export declare class ServerScanController {
     }[]>;
     fetchNext(agent: AgentSessionContext): Promise<{
         id: string;
+        status: import(".prisma/client").$Enums.ServerScanStatus;
+        startedAt: Date | null;
         serverId: string;
         playbook: string;
         parameters: import("@prisma/client/runtime/library").JsonValue;
-        status: import(".prisma/client").$Enums.ServerScanStatus;
         queuedAt: Date;
-        startedAt: Date | null;
     } | null>;
     submitReport(scanId: string, payload: ReportServerScanDto, agent: AgentSessionContext): Promise<{
         id: string;
@@ -105,8 +105,8 @@ export declare class ServerScanController {
     }>;
     ingestTelemetry(payload: TelemetryPayloadDto, agent: AgentSessionContext): Promise<{
         id: string;
-        serverId: string;
         agentId: string | null;
+        serverId: string;
         creditsCharged: number | null;
         cpuPercent: number | null;
         memoryPercent: number | null;

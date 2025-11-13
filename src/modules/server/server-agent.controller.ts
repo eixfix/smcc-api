@@ -20,6 +20,7 @@ import type { AuthenticatedUser } from '../../common/types/auth-user';
 import { CurrentAgent } from './decorators/current-agent.decorator';
 import { AgentAuthDto } from './dto/agent-auth.dto';
 import { CreateServerAgentDto } from './dto/create-server-agent.dto';
+import { CreateAgentUpdateManifestDto } from './dto/create-agent-update-manifest.dto';
 import type { AgentSessionContext } from './guards/agent-session.guard';
 import { AgentSessionGuard } from './guards/agent-session.guard';
 import { AgentEnvelopeInterceptor } from './interceptors/agent-envelope.interceptor';
@@ -89,6 +90,26 @@ export class ServerAgentController {
       throw new ForbiddenException('Agent session missing from request context.');
     }
     return this.serverAgentService.getUpdateManifest(agent, currentVersion);
+  }
+
+  @Roles(Role.ADMINISTRATOR)
+  @Post('agents/update/manifest')
+  publishUpdateManifest(
+    @Body() payload: CreateAgentUpdateManifestDto,
+    @CurrentUser() user: AuthenticatedUser
+  ) {
+    return this.serverAgentService.publishUpdateManifest(payload, user);
+  }
+
+  @Roles(Role.ADMINISTRATOR)
+  @Get('agents/update/manifests')
+  listUpdateManifests(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('limit') limit?: string
+  ) {
+    const parsed = limit ? Number.parseInt(limit, 10) : undefined;
+    const sanitized = parsed !== undefined && !Number.isNaN(parsed) ? parsed : undefined;
+    return this.serverAgentService.listUpdateManifests(user, sanitized);
   }
 
   private assertCapability(request: AgentCapabilityRequest, capability: string) {

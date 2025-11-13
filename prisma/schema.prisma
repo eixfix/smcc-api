@@ -39,85 +39,86 @@ enum ServerScanStatus {
 }
 
 model User {
-  id               String              @id @default(cuid())
-  email            String              @unique
-  name             String
-  passwordHash     String
-  role             Role                @default(MEMBER)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  organizations    OrganizationMember[]
-  ownedOrganizations Organization[] @relation("OrganizationOwner")
-  serversCreated   Server[]          @relation("ServerCreatedBy")
-  issuedAgents     ServerAgent[]     @relation("ServerAgentIssuedBy")
+  id                      String                @id @default(cuid())
+  email                   String                @unique
+  name                    String
+  passwordHash            String
+  role                    Role                  @default(MEMBER)
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  organizations           OrganizationMember[]
+  ownedOrganizations      Organization[]        @relation("OrganizationOwner")
+  serversCreated          Server[]              @relation("ServerCreatedBy")
+  issuedAgents            ServerAgent[]         @relation("ServerAgentIssuedBy")
+  publishedAgentManifests AgentUpdateManifest[] @relation("AgentUpdateManifestCreatedBy")
 
   @@map("users")
 }
 
 model Organization {
-  id          String               @id @default(cuid())
-  name        String
-  slug        String               @unique
-  credits     Int                  @default(0)
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  lastCreditedAt DateTime          @default(now())
-  lastDebitAt DateTime?
+  id              String               @id @default(cuid())
+  name            String
+  slug            String               @unique
+  credits         Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  lastCreditedAt  DateTime             @default(now())
+  lastDebitAt     DateTime?
   scanSuspendedAt DateTime?
-  projects    Project[]
-  members     OrganizationMember[]
-  ownerId     String?
-  owner       User?                @relation("OrganizationOwner", fields: [ownerId], references: [id])
-  servers     Server[]
+  projects        Project[]
+  members         OrganizationMember[]
+  ownerId         String?
+  owner           User?                @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  servers         Server[]
 
   @@map("organizations")
 }
 
 model OrganizationMember {
-  id              String   @id @default(cuid())
-  organizationId  String
-  userId          String
-  role            Role     @default(MEMBER)
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           Role     @default(MEMBER)
+  createdAt      DateTime @default(now())
 
-  organization    Organization @relation(fields: [organizationId], references: [id])
-  user            User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
 
   @@unique([organizationId, userId])
   @@map("organization_members")
 }
 
 model Project {
-  id              String   @id @default(cuid())
-  name            String
-  description     String?
-  organizationId  String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  organization    Organization @relation(fields: [organizationId], references: [id])
-  tasks           Task[]
+  organization Organization @relation(fields: [organizationId], references: [id])
+  tasks        Task[]
 
   @@map("projects")
 }
 
 model Task {
-  id          String    @id @default(cuid())
-  projectId   String
-  label       String
-  targetUrl   String
-  mode        TaskMode
-  scheduleAt  DateTime?
-  method      String    @default("GET")
-  headers     Json?
-  payload     String?
-  customVus   Int?
+  id              String    @id @default(cuid())
+  projectId       String
+  label           String
+  targetUrl       String
+  mode            TaskMode
+  scheduleAt      DateTime?
+  method          String    @default("GET")
+  headers         Json?
+  payload         String?
+  customVus       Int?
   durationSeconds Int?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  project     Project   @relation(fields: [projectId], references: [id])
-  reports     TaskReport[]
+  project Project      @relation(fields: [projectId], references: [id])
+  reports TaskReport[]
 
   @@map("tasks")
 }
@@ -130,82 +131,82 @@ model TaskReport {
   completedAt DateTime?
   summaryJson Json
 
-  task        Task      @relation(fields: [taskId], references: [id])
+  task Task @relation(fields: [taskId], references: [id])
 
   @@map("task_reports")
 }
 
 model Server {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   organizationId String
   name           String
   hostname       String?
   allowedIp      String?
   description    String?
   createdById    String?
-  isSuspended    Boolean   @default(false)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  isSuspended    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  createdBy   User?         @relation("ServerCreatedBy", fields: [createdById], references: [id])
-  agents      ServerAgent[]
-  scans       ServerScan[]
-  telemetry   ServerTelemetry[]
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  createdBy    User?             @relation("ServerCreatedBy", fields: [createdById], references: [id])
+  agents       ServerAgent[]
+  scans        ServerScan[]
+  telemetry    ServerTelemetry[]
 
-  @@map("servers")
   @@index([organizationId, name])
+  @@map("servers")
 }
 
 model ServerAgent {
-  id          String             @id @default(cuid())
-  serverId    String
-  accessKey   String             @unique
+  id           String            @id @default(cuid())
+  serverId     String
+  accessKey    String            @unique
   hashedSecret String
-  issuedById  String?
-  issuedAt    DateTime           @default(now())
-  expiresAt   DateTime?
-  lastSeenAt  DateTime?
-  status      ServerAgentStatus  @default(ACTIVE)
+  issuedById   String?
+  issuedAt     DateTime          @default(now())
+  expiresAt    DateTime?
+  lastSeenAt   DateTime?
+  status       ServerAgentStatus @default(ACTIVE)
 
-  server     Server   @relation(fields: [serverId], references: [id])
-  issuedBy   User?    @relation("ServerAgentIssuedBy", fields: [issuedById], references: [id])
-  scans      ServerScan[]
-  telemetry  ServerTelemetry[]
+  server    Server            @relation(fields: [serverId], references: [id])
+  issuedBy  User?             @relation("ServerAgentIssuedBy", fields: [issuedById], references: [id])
+  scans     ServerScan[]
+  telemetry ServerTelemetry[]
 
-  @@map("server_agents")
   @@index([serverId, status])
+  @@map("server_agents")
 }
 
 model ServerScan {
-  id             String            @id @default(cuid())
+  id             String           @id @default(cuid())
   serverId       String
   agentId        String?
   playbook       String
   parameters     Json?
-  status         ServerScanStatus  @default(QUEUED)
-  queuedAt       DateTime          @default(now())
+  status         ServerScanStatus @default(QUEUED)
+  queuedAt       DateTime         @default(now())
   startedAt      DateTime?
   completedAt    DateTime?
   failureReason  String?
   creditsCharged Int?
 
-  server Server @relation(fields: [serverId], references: [id])
-  agent  ServerAgent? @relation(fields: [agentId], references: [id])
+  server Server            @relation(fields: [serverId], references: [id])
+  agent  ServerAgent?      @relation(fields: [agentId], references: [id])
   result ServerScanResult?
 
-  @@map("server_scans")
   @@index([serverId, queuedAt])
+  @@map("server_scans")
 }
 
 model ServerScanResult {
-  scanId                String    @id
-  summaryJson           Json?
-  rawLog                String?   @db.LongText
-  storageMetricsJson    Json?
-  memoryMetricsJson     Json?
-  securityFindingsJson  Json?
-  createdAt             DateTime  @default(now())
+  scanId               String   @id
+  summaryJson          Json?
+  rawLog               String?  @db.LongText
+  storageMetricsJson   Json?
+  memoryMetricsJson    Json?
+  securityFindingsJson Json?
+  createdAt            DateTime @default(now())
 
   scan ServerScan @relation(fields: [scanId], references: [id])
 
@@ -223,9 +224,29 @@ model ServerTelemetry {
   creditsCharged Int?
   collectedAt    DateTime @default(now())
 
-  server Server @relation(fields: [serverId], references: [id])
+  server Server       @relation(fields: [serverId], references: [id])
   agent  ServerAgent? @relation(fields: [agentId], references: [id])
 
-  @@map("server_telemetry")
   @@index([serverId, collectedAt])
+  @@map("server_telemetry")
+}
+
+model AgentUpdateManifest {
+  id                String   @id @default(cuid())
+  version           String
+  channel           String
+  downloadUrl       String?
+  inlineSourceB64   String?  @db.LongText
+  checksumAlgorithm String?
+  checksumValue     String?
+  restartRequired   Boolean  @default(true)
+  minConfigVersion  String?
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now())
+  createdById       String?
+
+  createdBy User? @relation("AgentUpdateManifestCreatedBy", fields: [createdById], references: [id])
+
+  @@index([version, channel])
+  @@map("agent_update_manifests")
 }

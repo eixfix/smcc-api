@@ -57,7 +57,7 @@ let ServerAgentInstallController = class ServerAgentInstallController {
         };
     }
     async getInstallScript(token, request) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
         const secret = this.configService.get('AGENT_INSTALL_TOKEN_SECRET') ||
             this.configService.get('JWT_SECRET');
         let payload;
@@ -95,14 +95,17 @@ let ServerAgentInstallController = class ServerAgentInstallController {
         const configSignatureKey = (_h = (_g = this.configService.get('AGENT_CONFIG_SIGNATURE_KEY')) !== null && _g !== void 0 ? _g : this.configService.get('AGENT_PAYLOAD_KEY')) !== null && _h !== void 0 ? _h : '';
         const updateSignatureKey = (_j = this.configService.get('AGENT_UPDATE_SIGNATURE_KEY')) !== null && _j !== void 0 ? _j : configSignatureKey;
         const configRefreshIntervalMinutes = Number(this.configService.get('AGENT_CONFIG_REFRESH_INTERVAL_MINUTES')) || 360;
-        const metadataPath = (_k = this.configService.get('AGENT_METADATA_PATH')) !== null && _k !== void 0 ? _k : `${configPath}.meta.json`;
+        const playbookConfigPath = (_k = this.configService.get('AGENT_PLAYBOOK_CONFIG_PATH')) !== null && _k !== void 0 ? _k : '/etc/smcc-agent/playbooks.json';
+        const playbookTimeoutSeconds = Number(this.configService.get('AGENT_PLAYBOOK_TIMEOUT_SECONDS')) || 600;
+        const metadataPath = (_l = this.configService.get('AGENT_METADATA_PATH')) !== null && _l !== void 0 ? _l : `${configPath}.meta.json`;
         const derivedKey = (0, node_crypto_1.randomBytes)(32).toString('base64');
-        const installNonce = (_l = payload.nonce) !== null && _l !== void 0 ? _l : (0, node_crypto_1.randomBytes)(12).toString('base64url');
+        const installNonce = (_m = payload.nonce) !== null && _m !== void 0 ? _m : (0, node_crypto_1.randomBytes)(12).toString('base64url');
         const serviceUnitPath = `/etc/systemd/system/${serviceName}.service`;
         const installDirEscaped = installDir.replace(/"/g, '\\"');
         const binPathEscaped = binPath.replace(/"/g, '\\"');
         const configPathEscaped = configPath.replace(/"/g, '\\"');
         const metadataPathEscaped = metadataPath.replace(/"/g, '\\"');
+        const playbookPathEscaped = playbookConfigPath.replace(/"/g, '\\"');
         const agentScript = (0, agent_bootstrap_template_1.buildAgentBootstrapTemplate)({
             apiUrl: apiPublicUrl,
             configPath,
@@ -115,7 +118,9 @@ let ServerAgentInstallController = class ServerAgentInstallController {
             logPrefix: serviceName,
             configSignatureKey,
             updateSignatureKey,
-            configRefreshIntervalMinutes
+            configRefreshIntervalMinutes,
+            playbookConfigPath,
+            playbookTimeoutSeconds
         });
         return `#!/usr/bin/env bash
 set -euo pipefail
@@ -125,6 +130,7 @@ INSTALL_DIR="${installDirEscaped}"
 BIN_PATH="${binPathEscaped}"
 CONFIG_PATH="${configPathEscaped}"
 METADATA_PATH="${metadataPathEscaped}"
+PLAYBOOKS_PATH="${playbookPathEscaped}"
 SERVICE_NAME="${serviceName}"
 SERVICE_PATH="${serviceUnitPath}"
 
@@ -137,6 +143,7 @@ LOADTEST_AGENT_SOURCE
 install -m 755 "$INSTALL_DIR/loadtest-agent.js" "$BIN_PATH"
 install -d -m 755 "$(dirname "$CONFIG_PATH")"
 install -d -m 755 "$(dirname "$METADATA_PATH")"
+install -d -m 755 "$(dirname "$PLAYBOOKS_PATH")"
 
 LT_AGENT_CONFIG_PATH="$CONFIG_PATH" \
 LT_AGENT_METADATA_PATH="$METADATA_PATH" \
@@ -202,6 +209,31 @@ const document = {
 
 fs.writeFileSync(configPath, JSON.stringify(document, null, 2), { mode: 0o600 });
 LOADTEST_ENCRYPT_CONFIG
+
+if [ ! -f "$PLAYBOOKS_PATH" ]; then
+cat <<'LOADTEST_SAMPLE_PLAYBOOKS' > "$PLAYBOOKS_PATH"
+{
+  "baseline-security": {
+    "command": "/usr/local/bin/smcc-baseline.sh",
+    "args": [
+      "--target",
+      "example.internal"
+    ],
+    "timeoutSeconds": 300
+  },
+  "checkout-smoke": {
+    "command": "k6",
+    "args": [
+      "run",
+      "/opt/loadtests/checkout-smoke.js"
+    ],
+    "timeoutSeconds": 180
+  }
+}
+LOADTEST_SAMPLE_PLAYBOOKS
+  chmod 600 "$PLAYBOOKS_PATH"
+  echo "[loadtest] Sample playbook definitions written to $PLAYBOOKS_PATH. Update commands before running."
+fi
 
 cat <<EOF > "$SERVICE_PATH"
 [Unit]

@@ -136,6 +136,11 @@ export class ServerAgentInstallController {
       this.configService.get<string>('AGENT_UPDATE_SIGNATURE_KEY') ?? configSignatureKey;
     const configRefreshIntervalMinutes =
       Number(this.configService.get<string>('AGENT_CONFIG_REFRESH_INTERVAL_MINUTES')) || 360;
+    const playbookConfigPath =
+      this.configService.get<string>('AGENT_PLAYBOOK_CONFIG_PATH') ??
+      '/etc/smcc-agent/playbooks.json';
+    const playbookTimeoutSeconds =
+      Number(this.configService.get<string>('AGENT_PLAYBOOK_TIMEOUT_SECONDS')) || 600;
 
     const metadataPath =
       this.configService.get<string>('AGENT_METADATA_PATH') ?? `${configPath}.meta.json`;
@@ -147,6 +152,7 @@ export class ServerAgentInstallController {
     const binPathEscaped = binPath.replace(/"/g, '\\"');
     const configPathEscaped = configPath.replace(/"/g, '\\"');
     const metadataPathEscaped = metadataPath.replace(/"/g, '\\"');
+    const playbookPathEscaped = playbookConfigPath.replace(/"/g, '\\"');
 
     const agentScript = buildAgentBootstrapTemplate({
       apiUrl: apiPublicUrl,
@@ -160,7 +166,9 @@ export class ServerAgentInstallController {
       logPrefix: serviceName,
       configSignatureKey,
       updateSignatureKey,
-      configRefreshIntervalMinutes
+      configRefreshIntervalMinutes,
+      playbookConfigPath,
+      playbookTimeoutSeconds
     });
 
     return `#!/usr/bin/env bash
@@ -171,6 +179,7 @@ INSTALL_DIR="${installDirEscaped}"
 BIN_PATH="${binPathEscaped}"
 CONFIG_PATH="${configPathEscaped}"
 METADATA_PATH="${metadataPathEscaped}"
+PLAYBOOKS_PATH="${playbookPathEscaped}"
 SERVICE_NAME="${serviceName}"
 SERVICE_PATH="${serviceUnitPath}"
 
@@ -183,6 +192,7 @@ LOADTEST_AGENT_SOURCE
 install -m 755 "$INSTALL_DIR/loadtest-agent.js" "$BIN_PATH"
 install -d -m 755 "$(dirname "$CONFIG_PATH")"
 install -d -m 755 "$(dirname "$METADATA_PATH")"
+install -d -m 755 "$(dirname "$PLAYBOOKS_PATH")"
 
 LT_AGENT_CONFIG_PATH="$CONFIG_PATH" \
 LT_AGENT_METADATA_PATH="$METADATA_PATH" \
@@ -248,6 +258,31 @@ const document = {
 
 fs.writeFileSync(configPath, JSON.stringify(document, null, 2), { mode: 0o600 });
 LOADTEST_ENCRYPT_CONFIG
+
+if [ ! -f "$PLAYBOOKS_PATH" ]; then
+cat <<'LOADTEST_SAMPLE_PLAYBOOKS' > "$PLAYBOOKS_PATH"
+{
+  "baseline-security": {
+    "command": "/usr/local/bin/smcc-baseline.sh",
+    "args": [
+      "--target",
+      "example.internal"
+    ],
+    "timeoutSeconds": 300
+  },
+  "checkout-smoke": {
+    "command": "k6",
+    "args": [
+      "run",
+      "/opt/loadtests/checkout-smoke.js"
+    ],
+    "timeoutSeconds": 180
+  }
+}
+LOADTEST_SAMPLE_PLAYBOOKS
+  chmod 600 "$PLAYBOOKS_PATH"
+  echo "[loadtest] Sample playbook definitions written to $PLAYBOOKS_PATH. Update commands before running."
+fi
 
 cat <<EOF > "$SERVICE_PATH"
 [Unit]

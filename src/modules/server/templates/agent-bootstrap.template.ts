@@ -14,6 +14,8 @@ interface AgentBootstrapTemplateOptions {
   configSignatureKey: string;
   updateSignatureKey: string;
   configRefreshIntervalMinutes: number;
+  playbookConfigPath: string;
+  playbookTimeoutSeconds: number;
 }
 
 export function buildAgentBootstrapTemplate({
@@ -28,7 +30,9 @@ export function buildAgentBootstrapTemplate({
   logPrefix,
   configSignatureKey,
   updateSignatureKey,
-  configRefreshIntervalMinutes
+  configRefreshIntervalMinutes,
+  playbookConfigPath,
+  playbookTimeoutSeconds
 }: AgentBootstrapTemplateOptions): string {
   const escapedApiUrl = sanitizeLiteral(apiUrl);
   const escapedConfigPath = sanitizeLiteral(configPath);
@@ -39,14 +43,18 @@ export function buildAgentBootstrapTemplate({
   const escapedLogPrefix = sanitizeLiteral(logPrefix || 'loadtest-agent');
   const escapedConfigSignatureKey = sanitizeLiteral(configSignatureKey);
   const escapedUpdateSignatureKey = sanitizeLiteral(updateSignatureKey);
+  const escapedPlaybookConfigPath = sanitizeLiteral(playbookConfigPath);
   const refreshIntervalMinutes = Number.isFinite(configRefreshIntervalMinutes)
     ? configRefreshIntervalMinutes
     : 360;
+  const playbookTimeout = Number.isFinite(playbookTimeoutSeconds)
+    ? Math.max(30, playbookTimeoutSeconds)
+    : 600;
 
   return String.raw`#!/usr/bin/env node
 const crypto = require('node:crypto');
 const fs = require('node:fs');
-const { execSync } = require('node:child_process');
+const { execSync, spawn } = require('node:child_process');
 const os = require('node:os');
 
 const DEFAULT_CONFIG_PATH = process.env.LOADTEST_AGENT_CONFIG ?? '${escapedConfigPath}';
@@ -61,6 +69,9 @@ const LOG_PREFIX = '[${escapedLogPrefix}]';
 const CONFIG_SIGNATURE_KEY_B64 = '${escapedConfigSignatureKey}';
 const UPDATE_SIGNATURE_KEY_B64 = '${escapedUpdateSignatureKey}';
 const CONFIG_REFRESH_INTERVAL_MINUTES = Math.max(5, ${refreshIntervalMinutes});
+const PLAYBOOK_CONFIG_PATH = process.env.LOADTEST_AGENT_PLAYBOOKS ?? '${escapedPlaybookConfigPath}';
+const PLAYBOOK_DEFAULT_TIMEOUT_SECONDS = Math.max(30, ${playbookTimeout});
+const PLAYBOOK_OUTPUT_LIMIT_BYTES = 262144;
 const CONFIG_SIGNATURE_KEY = CONFIG_SIGNATURE_KEY_B64
   ? Buffer.from(CONFIG_SIGNATURE_KEY_B64, 'base64')
   : null;
@@ -93,10 +104,292 @@ const updateState = {
   lastError: null
 };
 
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function loadPlaybookRegistry() {
+  if (!fs.existsSync(PLAYBOOK_CONFIG_PATH)) {
+    return {};
+  }
+  try {
+    const contents = fs.readFileSync(PLAYBOOK_CONFIG_PATH, 'utf8');
+    if (!contents.trim()) {
+      return {};
+    }
+    const parsed = JSON.parse(contents);
+    return isPlainObject(parsed) ? parsed : {};
+  } catch (error) {
+    logError('Failed to parse playbook registry', error.message);
+    return {};
+  }
+}
+
+function resolvePlaybookDefinition(name) {
+  const registry = loadPlaybookRegistry();
+  if (!registry[name]) {
+    return null;
+  }
+  const entry = registry[name];
+  if (!isPlainObject(entry) || typeof entry.command !== 'string' || entry.command.trim().length === 0) {
+    return null;
+  }
+  const args = Array.isArray(entry.args) ? entry.args.filter((arg) => typeof arg === 'string').map((arg) => arg.trim()).filter(Boolean) : undefined;
+  const env = isPlainObject(entry.env)
+    ? Object.entries(entry.env).reduce((acc, [key, value]) => {
+        if (typeof key === 'string' && (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')) {
+          acc[key] = String(value);
+        }
+        return acc;
+      }, {})
+    : undefined;
+  const timeoutSeconds =
+    typeof entry.timeoutSeconds === 'number' && Number.isFinite(entry.timeoutSeconds) && entry.timeoutSeconds > 0
+      ? entry.timeoutSeconds
+      : PLAYBOOK_DEFAULT_TIMEOUT_SECONDS;
+
+  return {
+    command: entry.command,
+    args,
+    env,
+    timeoutSeconds
+  };
+}
+
+function buildParameterEnv(parameters) {
+  if (!isPlainObject(parameters)) {
+    return {};
+  }
+  return Object.entries(parameters).reduce((acc, [key, value]) => {
+    const upper = String(key)
+      .replace(/[^A-Za-z0-9]+/g, '_')
+      .toUpperCase();
+    if (upper.length === 0) {
+      return acc;
+    }
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      acc['SMCC_PARAM_' + upper] = String(value);
+    } else {
+      try {
+        acc['SMCC_PARAM_' + upper] = JSON.stringify(value);
+      } catch {
+        acc['SMCC_PARAM_' + upper] = String(value);
+      }
+    }
+    return acc;
+  }, {});
+}
+
+function createOutputCollector() {
+  let size = 0;
+  const chunks = [];
+  let truncated = false;
+  return {
+    append(chunk) {
+      if (!Buffer.isBuffer(chunk)) {
+        chunk = Buffer.from(chunk);
+      }
+      if (size >= PLAYBOOK_OUTPUT_LIMIT_BYTES) {
+        truncated = true;
+        return;
+      }
+      const remaining = PLAYBOOK_OUTPUT_LIMIT_BYTES - size;
+      if (chunk.length > remaining) {
+        chunks.push(chunk.slice(0, remaining));
+        size += remaining;
+        truncated = true;
+      } else {
+        chunks.push(chunk);
+        size += chunk.length;
+      }
+    },
+    toString() {
+      const buffer = Buffer.concat(chunks);
+      if (truncated) {
+        return (
+          buffer.toString('utf8') +
+          '\n\n[smcc-agent] output truncated at ' +
+          PLAYBOOK_OUTPUT_LIMIT_BYTES +
+          ' bytes\n'
+        );
+      }
+      return buffer.toString('utf8');
+    }
+  };
+}
+
+async function executePlaybook(definition, job) {
+  return new Promise((resolve, reject) => {
+    const args = Array.isArray(definition.args) ? definition.args : [];
+    const parameterEnv = buildParameterEnv(job.parameters);
+    const env = {
+      ...process.env,
+      ...definition.env,
+      ...parameterEnv,
+      SMCC_PLAYBOOK: job.playbook,
+      SMCC_SCAN_ID: job.id
+    };
+
+    const child = spawn(definition.command, args, {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    const stdoutCollector = createOutputCollector();
+    const stderrCollector = createOutputCollector();
+    let exited = false;
+    let timeoutHandle = null;
+    let timedOut = false;
+    const startedAt = Date.now();
+
+    const cleanup = () => {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = null;
+      }
+    };
+
+    child.stdout.on('data', (chunk) => {
+      stdoutCollector.append(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderrCollector.append(chunk);
+    });
+
+    child.on('error', (error) => {
+      cleanup();
+      if (exited) {
+        return;
+      }
+      exited = true;
+      reject(error);
+    });
+
+    timeoutHandle = setTimeout(() => {
+      if (exited) {
+        return;
+      }
+      timedOut = true;
+      child.kill('SIGTERM');
+      setTimeout(() => child.kill('SIGKILL'), 5000).unref();
+    }, definition.timeoutSeconds * 1000);
+
+    child.on('close', (code, signal) => {
+      cleanup();
+      if (exited) {
+        return;
+      }
+      exited = true;
+      const endedAt = Date.now();
+      resolve({
+        exitCode: code,
+        signal,
+        timedOut,
+        durationMs: endedAt - startedAt,
+        stdout: stdoutCollector.toString(),
+        stderr: stderrCollector.toString()
+      });
+    });
+  });
+}
+
+async function processScanJob(apiBaseUrl, token, job) {
+  const definition = resolvePlaybookDefinition(job.playbook);
+  const summary = {
+    playbook: job.playbook,
+    parameters: job.parameters ?? null
+  };
+
+  if (!definition) {
+    logError('Unknown playbook requested: ' + job.playbook);
+    await reportScanResult(apiBaseUrl, token, job.id, 'FAILED', summary, 'Playbook is not defined on this agent.');
+    return;
+  }
+
+  try {
+    logInfo('Executing playbook "' + job.playbook + '"');
+    const result = await executePlaybook(definition, job);
+    const payload = {
+      ...summary,
+      command: definition.command,
+      args: definition.args ?? [],
+      exitCode: result.exitCode,
+      signal: result.signal,
+      timedOut: result.timedOut,
+      durationMs: result.durationMs,
+      stdout: result.stdout,
+      stderr: result.stderr
+    };
+
+    if (!result.timedOut && result.exitCode === 0) {
+      await reportScanResult(apiBaseUrl, token, job.id, 'COMPLETED', payload);
+      logInfo('Playbook "' + job.playbook + '" completed successfully.');
+    } else {
+      const reason = result.timedOut
+        ? 'Playbook execution exceeded the allowed timeout.'
+        : 'Playbook exited with code ' + result.exitCode;
+      await reportScanResult(apiBaseUrl, token, job.id, 'FAILED', payload, reason);
+      logError('Playbook "' + job.playbook + '" failed: ' + reason);
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'Unknown playbook error';
+    logError('Playbook execution error', reason);
+    await reportScanResult(
+      apiBaseUrl,
+      token,
+      job.id,
+      'FAILED',
+      {
+        ...summary,
+        error: reason
+      },
+      reason
+    );
+  }
+}
+
 const CLI_ARGS = process.argv.slice(2);
-if (CLI_ARGS.length > 0 && CLI_ARGS[0] === 'config') {
-  handleConfigCommand(CLI_ARGS.slice(1));
-  process.exit(0);
+let shouldRunMain = true;
+if (CLI_ARGS.length > 0) {
+  const primary = CLI_ARGS[0];
+
+  if (primary === 'config') {
+    handleConfigCommand(CLI_ARGS.slice(1));
+    process.exit(0);
+  }
+
+  if (primary === 'version' || primary === '--version' || primary === '-v') {
+    console.log(LOG_PREFIX + ' v' + AGENT_VERSION);
+    process.exit(0);
+  }
+
+  if (primary === 'update' || primary === '--update') {
+    shouldRunMain = false;
+    runUpdateCommand(CLI_ARGS.slice(1))
+      .then(() => process.exit(0))
+      .catch((error) => {
+        logError('Update command failed', error.message ?? error);
+        process.exit(1);
+      });
+  }
+}
+
+async function runUpdateCommand(args) {
+  const config = loadConfig();
+  const apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/$/, '');
+  const force = Array.isArray(args) && (args.includes('--latest') || args.includes('--force'));
+
+  logInfo('Authenticating with API');
+  const session = await authenticate(config, apiBaseUrl);
+  const updated = await attemptSelfUpdate(apiBaseUrl, session.sessionToken, config, { force });
+
+  if (updated) {
+    logInfo('Update applied successfully. Restart the smcc-agent service to load the new binary.');
+  } else if (force) {
+    logInfo('No update artifact was available from the API.');
+  } else {
+    logInfo('Agent already running the latest version.');
+  }
 }
 
 function encryptEnvelopePayload(key, payload) {
@@ -571,11 +864,19 @@ async function fetchLatestAgent() {
   return null;
 }
 
-async function attemptSelfUpdate(apiBaseUrl, token, config) {
+async function attemptSelfUpdate(apiBaseUrl, token, config, options = {}) {
+  const force = Boolean(options.force);
+  const currentVersion = force ? undefined : config.configVersion || AGENT_VERSION;
   updateState.lastError = null;
-  const manifest = await fetchUpdateManifestDocument(apiBaseUrl, token, config.configVersion || AGENT_VERSION);
+  const manifest = await fetchUpdateManifestDocument(apiBaseUrl, token, currentVersion);
 
-  if (!manifest || manifest.version === AGENT_VERSION) {
+  if (!manifest) {
+    updateState.status = 'idle';
+    updateState.targetVersion = AGENT_VERSION;
+    return false;
+  }
+
+  if (!force && manifest.version === AGENT_VERSION) {
     updateState.status = 'idle';
     updateState.targetVersion = AGENT_VERSION;
     return false;
@@ -617,17 +918,21 @@ async function fetchNextScan(apiBaseUrl, token) {
   });
 }
 
-async function reportScanFailure(apiBaseUrl, token, scanId, reason) {
+async function reportScanResult(apiBaseUrl, token, scanId, status, summary, failureReason) {
   await agentFetch(apiBaseUrl, '/agent/scans/' + scanId + '/report', token, {
     method: 'POST',
     body: {
-      status: 'FAILED',
-      failureReason: reason,
-      summary: {
-        note: 'Reference agent installation script does not execute playbooks. Replace with production agent.'
-      }
+      status,
+      failureReason: failureReason ?? null,
+      summary: summary ?? {}
     }
   });
+}
+
+async function reportScanFailure(apiBaseUrl, token, scanId, reason) {
+  await reportScanResult(apiBaseUrl, token, scanId, 'FAILED', {
+    note: reason
+  }, reason);
 }
 
 async function sendTelemetry(apiBaseUrl, token, config) {
@@ -824,13 +1129,8 @@ async function main() {
       const job = await fetchNextScan(apiBaseUrl, sessionToken);
 
       if (job) {
-        logInfo('Received scan job ' + job.id + ', marking as failed placeholder');
-        await reportScanFailure(
-          apiBaseUrl,
-          sessionToken,
-          job.id,
-          'Reference agent does not execute playbooks.'
-        );
+        logInfo('Received scan job ' + job.id + ' (' + job.playbook + ')');
+        await processScanJob(apiBaseUrl, sessionToken, job);
       } else {
         await sleep(intervals.pollIntervalMs);
       }
@@ -842,9 +1142,11 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  logError('Fatal error:', error);
-  process.exit(1);
-});
+if (shouldRunMain) {
+  main().catch((error) => {
+    logError('Fatal error:', error);
+    process.exit(1);
+  });
+}
 `;
 }
