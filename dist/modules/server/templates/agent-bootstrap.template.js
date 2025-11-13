@@ -29,7 +29,7 @@ const path = require('node:path');
 const DEFAULT_CONFIG_PATH = process.env.LOADTEST_AGENT_CONFIG ?? '${escapedConfigPath}';
 const DEFAULT_METADATA_PATH = process.env.LOADTEST_AGENT_METADATA ?? '${escapedMetadataPath}';
 const DEFAULT_API_URL = '${escapedApiUrl}';
-const AGENT_VERSION = '${agentVersion}';
+const DEFAULT_AGENT_VERSION = '${agentVersion}';
 const AGENT_FILE_PATH = process.env.LOADTEST_AGENT_BINARY_PATH ?? '${escapedBinaryPath}';
 const DEFAULT_UPDATE_INTERVAL_MINUTES = ${defaultUpdateIntervalMinutes};
 const FALLBACK_DERIVED_KEY_B64 = '${escapedDerivedKey}';
@@ -68,7 +68,7 @@ function logError(message, error) {
 
 const updateState = {
   status: 'idle',
-  targetVersion: AGENT_VERSION,
+  targetVersion: DEFAULT_AGENT_VERSION,
   lastAttemptAt: null,
   lastError: null
 };
@@ -328,7 +328,8 @@ if (CLI_ARGS.length > 0) {
   }
 
   if (primary === 'version' || primary === '--version' || primary === '-v') {
-    console.log(LOG_PREFIX + ' v' + AGENT_VERSION);
+    const config = loadConfig();
+    console.log(LOG_PREFIX + ' v' + getAgentVersion(config));
     process.exit(0);
   }
 
@@ -358,7 +359,7 @@ async function runUpdateCommand(args) {
 
   try {
     logInfo('Downloading update script from API');
-    const script = await downloadUpdateScript(apiBaseUrl, serverId);
+    const script = await downloadUpdateScript(apiBaseUrl, serverId, getAgentVersion(config));
     await executeUpdateScript(script);
     logInfo('Update script completed. Restart the smcc-agent service if it is managed by systemd.');
   } catch (error) {
@@ -367,11 +368,11 @@ async function runUpdateCommand(args) {
   }
 }
 
-async function downloadUpdateScript(apiBaseUrl, serverId) {
+async function downloadUpdateScript(apiBaseUrl, serverId, agentVersionLabel) {
   const url = apiBaseUrl + '/agents/' + encodeURIComponent(serverId) + '/update.sh';
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'smcc-agent/' + AGENT_VERSION
+      'User-Agent': 'smcc-agent/' + agentVersionLabel
     }
   });
 
@@ -486,7 +487,7 @@ function ensureMetadata() {
     install_nonce: INSTALL_NONCE,
     derived_key: FALLBACK_DERIVED_KEY_B64,
     generated_at: new Date().toISOString(),
-    script_version: AGENT_VERSION
+    script_version: DEFAULT_AGENT_VERSION
   };
 
   fs.writeFileSync(DEFAULT_METADATA_PATH, JSON.stringify(doc, null, 2), { mode: 0o600 });
@@ -592,7 +593,8 @@ function normalizeConfigShape(source) {
       (config.featureFlags && typeof config.featureFlags === 'object' ? config.featureFlags : {}) ||
       {},
     configVersion: config.configVersion || 'bootstrap',
-    logLevel: config.logLevel || config.log_level || 'info'
+    logLevel: config.logLevel || config.log_level || 'info',
+    agentVersion: config.agentVersion || config.agent_version || DEFAULT_AGENT_VERSION
   };
 }
 
@@ -610,6 +612,25 @@ function deriveIntervals(config) {
       60 *
       1000
   };
+}
+
+function getAgentVersion(config) {
+  if (config && typeof config.agentVersion === 'string' && config.agentVersion.trim().length > 0) {
+    return config.agentVersion;
+  }
+  return DEFAULT_AGENT_VERSION;
+}
+
+function persistAgentVersion(config, version) {
+  if (!version) {
+    return;
+  }
+  const updated = {
+    ...config,
+    agentVersion: version
+  };
+  saveEncryptedConfig(updated);
+  config.agentVersion = version;
 }
 
 function loadConfig() {
@@ -698,7 +719,8 @@ function handleConfigCommand(argv) {
     ),
     featureFlags: current.featureFlags || {},
     configVersion: current.configVersion,
-    logLevel: args['log-level'] || current.logLevel || 'info'
+    logLevel: args['log-level'] || current.logLevel || 'info',
+    agentVersion: current.agentVersion || DEFAULT_AGENT_VERSION
   };
 
   saveEncryptedConfig(nextConfig);
@@ -881,19 +903,19 @@ async function fetchLatestAgent() {
 
 async function attemptSelfUpdate(apiBaseUrl, token, config, options = {}) {
   const force = Boolean(options.force);
-  const currentVersion = force ? undefined : config.configVersion || AGENT_VERSION;
+  const currentVersion = force ? undefined : config.configVersion || getAgentVersion(config);
   updateState.lastError = null;
   const manifest = await fetchUpdateManifestDocument(apiBaseUrl, token, currentVersion);
 
   if (!manifest) {
     updateState.status = 'idle';
-    updateState.targetVersion = AGENT_VERSION;
+    updateState.targetVersion = getAgentVersion(config);
     return false;
   }
 
-  if (!force && manifest.version === AGENT_VERSION) {
+  if (!force && manifest.version === getAgentVersion(config)) {
     updateState.status = 'idle';
-    updateState.targetVersion = AGENT_VERSION;
+    updateState.targetVersion = getAgentVersion(config);
     return false;
   }
 
@@ -912,8 +934,9 @@ async function attemptSelfUpdate(apiBaseUrl, token, config, options = {}) {
     updateState.lastAttemptAt = new Date().toISOString();
 
     try {
-      const script = await downloadUpdateScript(apiBaseUrl, serverId);
+      const script = await downloadUpdateScript(apiBaseUrl, serverId, getAgentVersion(config));
       await executeUpdateScript(script);
+      persistAgentVersion(config, manifest.version);
       updateState.status = 'applied';
       updateState.lastError = null;
       logInfo('Agent updated via update.sh endpoint.');
@@ -936,6 +959,7 @@ async function attemptSelfUpdate(apiBaseUrl, token, config, options = {}) {
     validateChecksum(manifest, artifact);
     backupPath = swapAgentBinary(artifact);
     logInfo('Agent binary updated to ' + manifest.version + '.');
+    persistAgentVersion(config, manifest.version);
     updateState.status = 'applied';
     updateFailureCount = 0;
     return true;
@@ -989,7 +1013,7 @@ async function sendTelemetry(apiBaseUrl, token, config) {
     cpuPercent,
     memoryPercent,
     diskPercent,
-    agentVersion: AGENT_VERSION,
+    agentVersion: getAgentVersion(config),
     configVersion: config.configVersion,
     updateStatus: updateState.status,
     lastUpdateCheckAt: lastUpdateCheckAt ? new Date(lastUpdateCheckAt).toISOString() : undefined,
@@ -1120,7 +1144,7 @@ async function main() {
   let intervals = deriveIntervals(config);
   let apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/$/, '');
 
-  logInfo('Starting agent loop');
+  logInfo('Starting agent loop (v' + getAgentVersion(config) + ')');
   let sessionToken = null;
   let tokenExpiresAt = 0;
   let lastTelemetryAt = 0;

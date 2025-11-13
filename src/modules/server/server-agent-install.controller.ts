@@ -315,7 +315,8 @@ const configPayload = {
   pollIntervalSeconds: Number(process.env.LT_AGENT_POLL_INTERVAL || '30'),
   telemetryIntervalMinutes: Number(process.env.LT_AGENT_TELEMETRY_INTERVAL || '60'),
   updateIntervalMinutes: Number(process.env.LT_AGENT_UPDATE_INTERVAL || '60'),
-  logLevel: 'info'
+  logLevel: 'info',
+  agentVersion: process.env.LT_AGENT_VERSION || '${agentVersion}'
 };
 
 const document = {
