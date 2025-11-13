@@ -7,8 +7,7 @@ import {
   Param,
   Post,
   Req,
-  UnauthorizedException,
-  UseGuards
+  UnauthorizedException
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';

@@ -31,6 +31,9 @@ export declare class TaskRunnerService {
     private execCommand;
     private normalizeExecutable;
     private toSummary;
+    private toMetricsRecord;
+    private toMetricSnapshot;
+    private toFiniteNumber;
 }
 export {};
 //# sourceMappingURL=task-runner.service.d.ts.map

@@ -176,15 +176,19 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
         return trimmed;
     }
     toSummary(rawJson, request) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+        var _a, _b, _c, _d, _e, _f, _g;
         try {
             const parsed = JSON.parse(rawJson);
-            const httpDuration = (_b = (_a = parsed.metrics) === null || _a === void 0 ? void 0 : _a.http_req_duration) !== null && _b !== void 0 ? _b : {};
-            const httpReqFailed = (_d = (_c = parsed.metrics) === null || _c === void 0 ? void 0 : _c.http_req_failed) !== null && _d !== void 0 ? _d : {};
-            const httpReqs = (_f = (_e = parsed.metrics) === null || _e === void 0 ? void 0 : _e.http_reqs) !== null && _f !== void 0 ? _f : {};
-            const iterations = (_h = (_g = parsed.metrics) === null || _g === void 0 ? void 0 : _g.iterations) !== null && _h !== void 0 ? _h : {};
-            const totalRequests = (_k = (_j = httpReqs.count) !== null && _j !== void 0 ? _j : iterations.count) !== null && _k !== void 0 ? _k : 0;
-            const failureRate = (_l = httpReqFailed.rate) !== null && _l !== void 0 ? _l : 0;
+            const metrics = this.toMetricsRecord(parsed);
+            if (!metrics) {
+                return null;
+            }
+            const httpDuration = this.toMetricSnapshot(metrics['http_req_duration']);
+            const httpReqFailed = this.toMetricSnapshot(metrics['http_req_failed']);
+            const httpReqs = this.toMetricSnapshot(metrics['http_reqs']);
+            const iterations = this.toMetricSnapshot(metrics['iterations']);
+            const totalRequests = (_b = (_a = httpReqs.count) !== null && _a !== void 0 ? _a : iterations.count) !== null && _b !== void 0 ? _b : 0;
+            const failureRate = (_c = httpReqFailed.rate) !== null && _c !== void 0 ? _c : 0;
             const successRate = Number(((1 - failureRate) * 100).toFixed(2));
             return {
                 scenario: {
@@ -192,10 +196,10 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
                     totalRequests
                 },
                 metrics: {
-                    averageMs: (_m = httpDuration.avg) !== null && _m !== void 0 ? _m : null,
-                    minMs: (_o = httpDuration.min) !== null && _o !== void 0 ? _o : null,
-                    maxMs: (_p = httpDuration.max) !== null && _p !== void 0 ? _p : null,
-                    p95Ms: (_q = httpDuration['p(95)']) !== null && _q !== void 0 ? _q : null,
+                    averageMs: (_d = httpDuration.avg) !== null && _d !== void 0 ? _d : null,
+                    minMs: (_e = httpDuration.min) !== null && _e !== void 0 ? _e : null,
+                    maxMs: (_f = httpDuration.max) !== null && _f !== void 0 ? _f : null,
+                    p95Ms: (_g = httpDuration.p95) !== null && _g !== void 0 ? _g : null,
                     successRate
                 },
                 results: {
@@ -204,10 +208,10 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
                     failureCount: Math.max(0, Math.round(totalRequests * failureRate))
                 },
                 raw: {
-                    http_req_duration: httpDuration,
-                    http_req_failed: httpReqFailed,
-                    http_reqs: httpReqs,
-                    iterations
+                    http_req_duration: metrics['http_req_duration'],
+                    http_req_failed: metrics['http_req_failed'],
+                    http_reqs: metrics['http_reqs'],
+                    iterations: metrics['iterations']
                 }
             };
         }
@@ -215,6 +219,41 @@ let TaskRunnerService = TaskRunnerService_1 = class TaskRunnerService {
             this.logger.warn(`Unable to parse k6 summary JSON: ${error.message}`);
             return null;
         }
+    }
+    toMetricsRecord(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return null;
+        }
+        const record = value;
+        const metrics = record.metrics;
+        if (!metrics || typeof metrics !== 'object' || Array.isArray(metrics)) {
+            return null;
+        }
+        return metrics;
+    }
+    toMetricSnapshot(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return {
+                avg: null,
+                min: null,
+                max: null,
+                p95: null,
+                count: null,
+                rate: null
+            };
+        }
+        const metric = value;
+        return {
+            avg: this.toFiniteNumber(metric.avg),
+            min: this.toFiniteNumber(metric.min),
+            max: this.toFiniteNumber(metric.max),
+            p95: this.toFiniteNumber(metric['p(95)']),
+            count: this.toFiniteNumber(metric.count),
+            rate: this.toFiniteNumber(metric.rate)
+        };
+    }
+    toFiniteNumber(value) {
+        return typeof value === 'number' && Number.isFinite(value) ? value : null;
     }
 };
 exports.TaskRunnerService = TaskRunnerService;

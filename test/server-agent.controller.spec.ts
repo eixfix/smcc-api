@@ -9,7 +9,11 @@ import { ServerAgentController } from '../src/modules/server/server-agent.contro
 import { ServerAgentService } from '../src/modules/server/server-agent.service';
 import type { AgentSessionContext } from '../src/modules/server/guards/agent-session.guard';
 import { AgentSessionGuard } from '../src/modules/server/guards/agent-session.guard';
-import { AgentEnvelopeInterceptor } from '../src/modules/server/interceptors/agent-envelope.interceptor';
+
+type ServerAgentServiceMock = Record<
+  'mintAgentToken' | 'revokeAgent' | 'authenticateAgent' | 'getRemoteConfig' | 'getUpdateManifest',
+  jest.Mock
+>;
 
 const mockUser: AuthenticatedUser = {
   userId: 'user_1',
@@ -19,21 +23,23 @@ const mockUser: AuthenticatedUser = {
 
 describe('ServerAgentController', () => {
   let controller: ServerAgentController;
-  let service: jest.Mocked<ServerAgentService>;
+  let service: ServerAgentServiceMock;
 
   beforeEach(async () => {
+    const serviceMock: ServerAgentServiceMock = {
+      mintAgentToken: jest.fn().mockResolvedValue({ token: 'token' }),
+      revokeAgent: jest.fn().mockResolvedValue({ revoked: true }),
+      authenticateAgent: jest.fn().mockResolvedValue({ sessionToken: 'session' }),
+      getRemoteConfig: jest.fn().mockReturnValue({ settings: {} }),
+      getUpdateManifest: jest.fn().mockReturnValue({ version: '1.0.1' })
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ServerAgentController],
       providers: [
         {
           provide: ServerAgentService,
-          useValue: {
-            mintAgentToken: jest.fn(),
-            revokeAgent: jest.fn(),
-            authenticateAgent: jest.fn(),
-            getRemoteConfig: jest.fn(),
-            getUpdateManifest: jest.fn()
-          }
+          useValue: serviceMock
         }
       ]
     })
@@ -41,14 +47,10 @@ describe('ServerAgentController', () => {
       .useValue({
         canActivate: jest.fn().mockResolvedValue(true)
       })
-      .overrideInterceptor(AgentEnvelopeInterceptor)
-      .useValue({
-        intercept: jest.fn((_, next) => next.handle())
-      })
       .compile();
 
     controller = module.get(ServerAgentController);
-    service = module.get(ServerAgentService);
+    service = serviceMock;
   });
 
   it('creates agent token', async () => {
@@ -75,14 +77,14 @@ describe('ServerAgentController', () => {
     expect(service.authenticateAgent).toHaveBeenCalledWith(payload, null);
   });
 
-  it('fetches remote config when capability present', async () => {
+  it('fetches remote config when capability present', () => {
     const agent: AgentSessionContext = {
       agentId: 'agent',
       serverId: 'server',
       organizationId: 'org'
     };
 
-    await controller.fetchConfig(
+    controller.fetchConfig(
       {
         agentCapabilities: ['config_v1']
       } as unknown as Request & { agentCapabilities?: string[] },
@@ -92,14 +94,14 @@ describe('ServerAgentController', () => {
     expect(service.getRemoteConfig).toHaveBeenCalledWith(agent);
   });
 
-  it('fetches update manifest when capability present', async () => {
+  it('fetches update manifest when capability present', () => {
     const agent: AgentSessionContext = {
       agentId: 'agent',
       serverId: 'server',
       organizationId: 'org'
     };
 
-    await controller.fetchUpdateManifest(
+    controller.fetchUpdateManifest(
       {
         agentCapabilities: ['update_v1']
       } as unknown as Request & { agentCapabilities?: string[] },

@@ -27,5 +27,13 @@ module.exports = {
         'newlines-between': 'always'
       }
     ]
-  }
+  },
+  overrides: [
+    {
+      files: ['test/**/*.spec.ts'],
+      rules: {
+        '@typescript-eslint/unbound-method': 'off'
+      }
+    }
+  ]
 };

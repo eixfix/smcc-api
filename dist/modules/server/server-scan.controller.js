@@ -32,6 +32,11 @@ let ServerScanController = class ServerScanController {
     queueScan(serverId, payload, user) {
         return this.serverScanService.queueScan(serverId, payload, user);
     }
+    listAllScans(user, limit) {
+        const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
+        const sanitizedLimit = parsedLimit !== undefined && !Number.isNaN(parsedLimit) ? parsedLimit : undefined;
+        return this.serverScanService.listRecentScans(user, sanitizedLimit);
+    }
     listScans(serverId, user) {
         return this.serverScanService.listScans(serverId, user);
     }
@@ -56,6 +61,15 @@ __decorate([
     __metadata("design:paramtypes", [String, queue_server_scan_dto_1.QueueServerScanDto, Object]),
     __metadata("design:returntype", void 0)
 ], ServerScanController.prototype, "queueScan", null);
+__decorate([
+    (0, common_1.Get)('servers/scans'),
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMINISTRATOR, client_1.Role.OWNER),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ServerScanController.prototype, "listAllScans", null);
 __decorate([
     (0, common_1.Get)('servers/:serverId/scans'),
     (0, roles_decorator_1.Roles)(client_1.Role.ADMINISTRATOR, client_1.Role.OWNER),

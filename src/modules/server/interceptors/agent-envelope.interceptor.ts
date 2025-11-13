@@ -16,6 +16,12 @@ type AgentAwareRequest = Request & {
   } | null;
 };
 
+interface AgentEncryptedPayload {
+  ciphertext: string;
+  iv: string;
+  tag: string;
+}
+
 @Injectable()
 export class AgentEnvelopeInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -29,7 +35,7 @@ export class AgentEnvelopeInterceptor implements NestInterceptor {
     }
 
     return next.handle().pipe(
-      map((data) => {
+      map((data: unknown) => {
         if (response.statusCode === 204 || data === undefined) {
           return data;
         }
@@ -41,7 +47,7 @@ export class AgentEnvelopeInterceptor implements NestInterceptor {
     );
   }
 
-  private encrypt(key: Buffer, data: unknown) {
+  private encrypt(key: Buffer, data: unknown): AgentEncryptedPayload {
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, iv);
     const ciphertext = Buffer.concat([

@@ -11,7 +11,7 @@ export declare class JwtStrategy extends JwtStrategy_base {
         sub: string;
         email: string;
         role: Role;
-    }): Promise<AuthenticatedUser>;
+    }): AuthenticatedUser;
 }
 export {};
 //# sourceMappingURL=jwt.strategy.d.ts.map

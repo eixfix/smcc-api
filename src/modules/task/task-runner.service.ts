@@ -237,14 +237,16 @@ export class TaskRunnerService {
     request: RunRequest
   ): Record<string, unknown> | null {
     try {
-      const parsed = JSON.parse(rawJson) as {
-        metrics?: Record<string, any>;
-      };
+      const parsed = JSON.parse(rawJson) as unknown;
+      const metrics = this.toMetricsRecord(parsed);
+      if (!metrics) {
+        return null;
+      }
 
-      const httpDuration = parsed.metrics?.http_req_duration ?? {};
-      const httpReqFailed = parsed.metrics?.http_req_failed ?? {};
-      const httpReqs = parsed.metrics?.http_reqs ?? {};
-      const iterations = parsed.metrics?.iterations ?? {};
+      const httpDuration = this.toMetricSnapshot(metrics['http_req_duration']);
+      const httpReqFailed = this.toMetricSnapshot(metrics['http_req_failed']);
+      const httpReqs = this.toMetricSnapshot(metrics['http_reqs']);
+      const iterations = this.toMetricSnapshot(metrics['iterations']);
 
       const totalRequests = httpReqs.count ?? iterations.count ?? 0;
       const failureRate = httpReqFailed.rate ?? 0;
@@ -259,7 +261,7 @@ export class TaskRunnerService {
           averageMs: httpDuration.avg ?? null,
           minMs: httpDuration.min ?? null,
           maxMs: httpDuration.max ?? null,
-          p95Ms: httpDuration['p(95)'] ?? null,
+          p95Ms: httpDuration.p95 ?? null,
           successRate
         },
         results: {
@@ -268,15 +270,61 @@ export class TaskRunnerService {
           failureCount: Math.max(0, Math.round(totalRequests * failureRate))
         },
         raw: {
-          http_req_duration: httpDuration,
-          http_req_failed: httpReqFailed,
-          http_reqs: httpReqs,
-          iterations
+          http_req_duration: metrics['http_req_duration'],
+          http_req_failed: metrics['http_req_failed'],
+          http_reqs: metrics['http_reqs'],
+          iterations: metrics['iterations']
         }
       };
     } catch (error) {
       this.logger.warn(`Unable to parse k6 summary JSON: ${(error as Error).message}`);
       return null;
     }
+  }
+
+  private toMetricsRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    const record = value as Record<string, unknown>;
+    const metrics = record.metrics;
+    if (!metrics || typeof metrics !== 'object' || Array.isArray(metrics)) {
+      return null;
+    }
+    return metrics as Record<string, unknown>;
+  }
+
+  private toMetricSnapshot(value: unknown): {
+    avg: number | null;
+    min: number | null;
+    max: number | null;
+    p95: number | null;
+    count: number | null;
+    rate: number | null;
+  } {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {
+        avg: null,
+        min: null,
+        max: null,
+        p95: null,
+        count: null,
+        rate: null
+      };
+    }
+
+    const metric = value as Record<string, unknown>;
+    return {
+      avg: this.toFiniteNumber(metric.avg),
+      min: this.toFiniteNumber(metric.min),
+      max: this.toFiniteNumber(metric.max),
+      p95: this.toFiniteNumber(metric['p(95)']),
+      count: this.toFiniteNumber(metric.count),
+      rate: this.toFiniteNumber(metric.rate)
+    };
+  }
+
+  private toFiniteNumber(value: unknown): number | null {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
   }
 }

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException
 } from '@nestjs/common';
-import { Prisma, ServerScanStatus } from '@prisma/client';
+import { Prisma, Role, ServerScanStatus } from '@prisma/client';
 
 import {
   CREDIT_COST_SERVER_SCAN,
@@ -109,6 +109,85 @@ export class ServerScanService {
       orderBy: { queuedAt: 'desc' },
       select: SCAN_WITH_RESULT_SELECT
     });
+  }
+
+  async listRecentScans(user: AuthenticatedUser, limit?: number) {
+    const take = Math.min(Math.max(limit ?? 50, 1), 100);
+    const where: Prisma.ServerScanWhereInput = {};
+
+    if (user.role !== Role.ADMINISTRATOR) {
+      const ownerOrganizations = await this.prisma.organizationMember.findMany({
+        where: {
+          userId: user.userId,
+          role: Role.OWNER
+        },
+        select: { organizationId: true }
+      });
+
+      if (!ownerOrganizations.length) {
+        return [];
+      }
+
+      where.server = {
+        organizationId: {
+          in: ownerOrganizations.map((org) => org.organizationId)
+        }
+      };
+    }
+
+    const scans = await this.prisma.serverScan.findMany({
+      where,
+      orderBy: { queuedAt: 'desc' },
+      take,
+      select: {
+        id: true,
+        playbook: true,
+        status: true,
+        queuedAt: true,
+        startedAt: true,
+        completedAt: true,
+        failureReason: true,
+        creditsCharged: true,
+        agent: {
+          select: {
+            id: true,
+            accessKey: true,
+            status: true
+          }
+        },
+        server: {
+          select: {
+            id: true,
+            name: true,
+            hostname: true,
+            organization: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        },
+        result: {
+          select: {
+            summaryJson: true,
+            storageMetricsJson: true,
+            memoryMetricsJson: true,
+            securityFindingsJson: true
+          }
+        }
+      }
+    });
+
+    return scans.map(({ server, ...rest }) => ({
+      ...rest,
+      server: {
+        id: server.id,
+        name: server.name,
+        hostname: server.hostname
+      },
+      organization: server.organization
+    }));
   }
 
   async getNextQueuedScan(agent: AgentSessionContext) {

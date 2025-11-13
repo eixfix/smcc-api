@@ -53,8 +53,11 @@ let AgentSessionGuard = class AgentSessionGuard {
             }
             const envelopeKey = Buffer.from(payload.envelope, 'base64');
             request.agentEnvelope = { version: 'v1', key: envelopeKey };
-            if (request.body && Object.keys(request.body).length > 0) {
-                request.body = this.decryptEnvelopePayload(envelopeKey, request.body);
+            const rawBody = request.body;
+            if (rawBody &&
+                typeof rawBody === 'object' &&
+                Object.keys(rawBody).length > 0) {
+                request.body = this.decryptEnvelopePayload(envelopeKey, rawBody);
             }
             request.agent = {
                 agentId: payload.sub,

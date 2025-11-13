@@ -17,21 +17,21 @@ export declare class ServerScanService {
     queueScan(serverId: string, dto: QueueServerScanDto, user: AuthenticatedUser): Promise<{
         result: {
             summaryJson: Prisma.JsonValue;
-            createdAt: Date;
             rawLog: string | null;
             storageMetricsJson: Prisma.JsonValue;
             memoryMetricsJson: Prisma.JsonValue;
             securityFindingsJson: Prisma.JsonValue;
+            createdAt: Date;
         } | null;
         id: string;
-        status: import(".prisma/client").$Enums.ServerScanStatus;
-        startedAt: Date | null;
-        completedAt: Date | null;
-        agentId: string | null;
         serverId: string;
+        agentId: string | null;
         playbook: string;
         parameters: Prisma.JsonValue;
+        status: import(".prisma/client").$Enums.ServerScanStatus;
         queuedAt: Date;
+        startedAt: Date | null;
+        completedAt: Date | null;
         failureReason: string | null;
         creditsCharged: number | null;
         agent: {
@@ -43,21 +43,21 @@ export declare class ServerScanService {
     listScans(serverId: string, user: AuthenticatedUser): Promise<{
         result: {
             summaryJson: Prisma.JsonValue;
-            createdAt: Date;
             rawLog: string | null;
             storageMetricsJson: Prisma.JsonValue;
             memoryMetricsJson: Prisma.JsonValue;
             securityFindingsJson: Prisma.JsonValue;
+            createdAt: Date;
         } | null;
         id: string;
-        status: import(".prisma/client").$Enums.ServerScanStatus;
-        startedAt: Date | null;
-        completedAt: Date | null;
-        agentId: string | null;
         serverId: string;
+        agentId: string | null;
         playbook: string;
         parameters: Prisma.JsonValue;
+        status: import(".prisma/client").$Enums.ServerScanStatus;
         queuedAt: Date;
+        startedAt: Date | null;
+        completedAt: Date | null;
         failureReason: string | null;
         creditsCharged: number | null;
         agent: {
@@ -66,24 +66,54 @@ export declare class ServerScanService {
             lastSeenAt: Date | null;
         } | null;
     }[]>;
+    listRecentScans(user: AuthenticatedUser, limit?: number): Promise<{
+        server: {
+            id: string;
+            name: string;
+            hostname: string | null;
+        };
+        organization: {
+            name: string;
+            id: string;
+        };
+        result: {
+            summaryJson: Prisma.JsonValue;
+            storageMetricsJson: Prisma.JsonValue;
+            memoryMetricsJson: Prisma.JsonValue;
+            securityFindingsJson: Prisma.JsonValue;
+        } | null;
+        id: string;
+        playbook: string;
+        status: import(".prisma/client").$Enums.ServerScanStatus;
+        queuedAt: Date;
+        startedAt: Date | null;
+        completedAt: Date | null;
+        failureReason: string | null;
+        creditsCharged: number | null;
+        agent: {
+            id: string;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
+            accessKey: string;
+        } | null;
+    }[]>;
     getNextQueuedScan(agent: AgentSessionContext): Promise<{
         id: string;
-        status: import(".prisma/client").$Enums.ServerScanStatus;
-        startedAt: Date | null;
         serverId: string;
         playbook: string;
         parameters: Prisma.JsonValue;
+        status: import(".prisma/client").$Enums.ServerScanStatus;
         queuedAt: Date;
+        startedAt: Date | null;
     } | null>;
     submitScanReport(agent: AgentSessionContext, scanId: string, dto: ReportServerScanDto): Promise<{
         id: string;
-        status: "FAILED" | "COMPLETED";
+        status: "COMPLETED" | "FAILED";
         completedAt: Date;
     }>;
     ingestTelemetry(agent: AgentSessionContext, dto: TelemetryPayloadDto): Promise<{
         id: string;
-        agentId: string | null;
         serverId: string;
+        agentId: string | null;
         creditsCharged: number | null;
         cpuPercent: number | null;
         memoryPercent: number | null;

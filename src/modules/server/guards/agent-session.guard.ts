@@ -42,6 +42,12 @@ type AgentAwareRequest = Request & {
   agentCapabilities?: string[];
 };
 
+interface AgentEnvelopePayload {
+  ciphertext: string;
+  iv: string;
+  tag: string;
+}
+
 @Injectable()
 export class AgentSessionGuard implements CanActivate {
   constructor(
@@ -92,8 +98,16 @@ export class AgentSessionGuard implements CanActivate {
       const envelopeKey = Buffer.from(payload.envelope, 'base64');
       request.agentEnvelope = { version: 'v1', key: envelopeKey };
 
-      if (request.body && Object.keys(request.body).length > 0) {
-        request.body = this.decryptEnvelopePayload(envelopeKey, request.body);
+      const rawBody = request.body as unknown;
+      if (
+        rawBody &&
+        typeof rawBody === 'object' &&
+        Object.keys(rawBody as Record<string, unknown>).length > 0
+      ) {
+        request.body = this.decryptEnvelopePayload(
+          envelopeKey,
+          rawBody as Partial<AgentEnvelopePayload>
+        );
       }
 
       request.agent = {
@@ -143,7 +157,10 @@ export class AgentSessionGuard implements CanActivate {
     }
   }
 
-  private decryptEnvelopePayload(key: Buffer, payload: any): unknown {
+  private decryptEnvelopePayload(
+    key: Buffer,
+    payload: Partial<AgentEnvelopePayload>
+  ): unknown {
     if (
       !payload ||
       typeof payload.ciphertext !== 'string' ||

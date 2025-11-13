@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { Role } from '@prisma/client';
 
 import { Public } from '../../common/decorators/public.decorator';
@@ -26,6 +26,18 @@ export class ServerScanController {
     @CurrentUser() user: AuthenticatedUser
   ) {
     return this.serverScanService.queueScan(serverId, payload, user);
+  }
+
+  @Get('servers/scans')
+  @Roles(Role.ADMINISTRATOR, Role.OWNER)
+  listAllScans(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('limit') limit?: string
+  ) {
+    const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
+    const sanitizedLimit =
+      parsedLimit !== undefined && !Number.isNaN(parsedLimit) ? parsedLimit : undefined;
+    return this.serverScanService.listRecentScans(user, sanitizedLimit);
   }
 
   @Get('servers/:serverId/scans')

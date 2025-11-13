@@ -26,7 +26,8 @@ describe('ServerController', () => {
             findOne: jest.fn().mockResolvedValue(null),
             create: jest.fn().mockResolvedValue({ id: 'srv_1' }),
             update: jest.fn().mockResolvedValue({ id: 'srv_1' }),
-            setSuspension: jest.fn().mockResolvedValue({ id: 'srv_1', isSuspended: true })
+            setSuspension: jest.fn().mockResolvedValue({ id: 'srv_1', isSuspended: true }),
+            listTelemetry: jest.fn().mockResolvedValue([])
           }
         }
       ]
@@ -50,7 +51,8 @@ describe('ServerController', () => {
     await controller.create(
       {
         organizationId: 'org_1',
-        name: 'Primary'
+        name: 'Primary',
+        allowedIp: '10.0.0.10'
       },
       mockUser
     );
@@ -58,7 +60,8 @@ describe('ServerController', () => {
     expect(service.create).toHaveBeenCalledWith(
       {
         organizationId: 'org_1',
-        name: 'Primary'
+        name: 'Primary',
+        allowedIp: '10.0.0.10'
       },
       mockUser
     );
@@ -77,5 +80,15 @@ describe('ServerController', () => {
   it('unsuspends server', async () => {
     await controller.unsuspend('srv_1', mockUser);
     expect(service.setSuspension).toHaveBeenCalledWith('srv_1', false, mockUser);
+  });
+
+  it('lists telemetry history with parsed limit', async () => {
+    await controller.listTelemetry('srv_1', mockUser, '10');
+    expect(service.listTelemetry).toHaveBeenCalledWith('srv_1', mockUser, 10);
+  });
+
+  it('falls back to default telemetry limit on invalid input', async () => {
+    await controller.listTelemetry('srv_1', mockUser, 'not-a-number');
+    expect(service.listTelemetry).toHaveBeenCalledWith('srv_1', mockUser, undefined);
   });
 });

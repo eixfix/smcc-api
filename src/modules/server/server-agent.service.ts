@@ -372,8 +372,8 @@ export class ServerAgentService {
     }
 
     try {
-      const parsed = JSON.parse(rawFlags);
-      if (parsed && typeof parsed === 'object') {
+      const parsed = JSON.parse(rawFlags) as unknown;
+      if (this.isRecord(parsed)) {
         return Object.entries(parsed).reduce<Record<string, boolean>>(
           (acc, [key, value]) => {
             acc[key] = Boolean(value);
@@ -431,5 +431,9 @@ export class ServerAgentService {
     } catch {
       return Buffer.from(value, 'utf8');
     }
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 }

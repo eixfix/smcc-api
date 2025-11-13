@@ -28,6 +28,7 @@ describe('ServerScanController', () => {
     service = {
       queueScan: jest.fn(),
       listScans: jest.fn(),
+      listRecentScans: jest.fn(),
       getNextQueuedScan: jest.fn(),
       submitScanReport: jest.fn(),
       ingestTelemetry: jest.fn()
@@ -45,6 +46,16 @@ describe('ServerScanController', () => {
   it('lists scans', async () => {
     await controller.listScans('srv_1', mockUser);
     expect(service.listScans).toHaveBeenCalledWith('srv_1', mockUser);
+  });
+
+  it('lists recent scans across fleet', async () => {
+    await controller.listAllScans(mockUser, '25');
+    expect(service.listRecentScans).toHaveBeenCalledWith(mockUser, 25);
+  });
+
+  it('falls back to default limit when listAllScans receives invalid input', async () => {
+    await controller.listAllScans(mockUser, 'invalid');
+    expect(service.listRecentScans).toHaveBeenCalledWith(mockUser, undefined);
   });
 
   it('fetches next agent job', async () => {

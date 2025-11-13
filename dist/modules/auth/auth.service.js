@@ -28,7 +28,8 @@ let AuthService = class AuthService {
         if (!isValid) {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
-        const { passwordHash, ...rest } = user;
+        const { passwordHash: _passwordHash, ...rest } = user;
+        void _passwordHash;
         return rest;
     }
     async login(user) {
@@ -45,7 +46,8 @@ let AuthService = class AuthService {
         if (!user) {
             throw new common_1.UnauthorizedException('User not found');
         }
-        const { passwordHash, ...rest } = user;
+        const { passwordHash: _passwordHash, ...rest } = user;
+        void _passwordHash;
         return rest;
     }
 };

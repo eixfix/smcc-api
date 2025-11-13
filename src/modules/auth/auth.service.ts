@@ -27,7 +27,8 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const { passwordHash, ...rest } = user;
+    const { passwordHash: _passwordHash, ...rest } = user;
+    void _passwordHash;
 
     return rest;
   }
@@ -51,7 +52,8 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    const { passwordHash, ...rest } = user;
+    const { passwordHash: _passwordHash, ...rest } = user;
+    void _passwordHash;
     return rest;
   }
 }

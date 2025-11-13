@@ -7,73 +7,73 @@ export declare class TaskController {
     private readonly taskService;
     constructor(taskService: TaskService);
     findAll(projectId: string, user: AuthenticatedUser): Promise<{
-        headers: import("@prisma/client/runtime/library").JsonValue | null;
-        method: string;
-        payload: string | null;
         id: string;
         projectId: string;
         label: string;
         targetUrl: string;
         mode: import(".prisma/client").$Enums.TaskMode;
         scheduleAt: Date | null;
+        method: string;
+        headers: import("@prisma/client/runtime/library").JsonValue | null;
+        payload: string | null;
         customVus: number | null;
         durationSeconds: number | null;
         createdAt: Date;
         updatedAt: Date;
     }[]>;
     create(projectId: string, payload: CreateTaskDto, user: AuthenticatedUser): Promise<{
-        headers: import("@prisma/client/runtime/library").JsonValue | null;
-        method: string;
-        payload: string | null;
         id: string;
         projectId: string;
         label: string;
         targetUrl: string;
         mode: import(".prisma/client").$Enums.TaskMode;
         scheduleAt: Date | null;
+        method: string;
+        headers: import("@prisma/client/runtime/library").JsonValue | null;
+        payload: string | null;
         customVus: number | null;
         durationSeconds: number | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
     update(taskId: string, payload: UpdateTaskDto, user: AuthenticatedUser): Promise<{
-        headers: import("@prisma/client/runtime/library").JsonValue | null;
-        method: string;
-        payload: string | null;
         id: string;
         projectId: string;
         label: string;
         targetUrl: string;
         mode: import(".prisma/client").$Enums.TaskMode;
         scheduleAt: Date | null;
+        method: string;
+        headers: import("@prisma/client/runtime/library").JsonValue | null;
+        payload: string | null;
         customVus: number | null;
         durationSeconds: number | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
     run(taskId: string, user: AuthenticatedUser): Promise<{
-        id: string;
-        taskId: string;
         status: string;
         startedAt: Date;
         completedAt: Date | null;
+        id: string;
+        taskId: string;
         summaryJson: import("@prisma/client/runtime/library").JsonValue;
     }>;
     findReports(taskId: string, user: AuthenticatedUser): Promise<{
-        id: string;
-        taskId: string;
         status: string;
         startedAt: Date;
         completedAt: Date | null;
+        id: string;
+        taskId: string;
         summaryJson: import("@prisma/client/runtime/library").JsonValue;
     }[]>;
     exportRecent(user: AuthenticatedUser, res: Response): Promise<void>;
     findRecent(user: AuthenticatedUser): Promise<({
-        id: string;
-        taskId: string;
         status: string;
         startedAt: Date;
         completedAt: Date | null;
+        id: string;
+        taskId: string;
         summaryJson: import("@prisma/client/runtime/library").JsonValue;
     } & {
         task: {

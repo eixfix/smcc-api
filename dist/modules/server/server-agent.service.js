@@ -307,7 +307,7 @@ let ServerAgentService = class ServerAgentService {
         }
         try {
             const parsed = JSON.parse(rawFlags);
-            if (parsed && typeof parsed === 'object') {
+            if (this.isRecord(parsed)) {
                 return Object.entries(parsed).reduce((acc, [key, value]) => {
                     acc[key] = Boolean(value);
                     return acc;
@@ -353,6 +353,9 @@ let ServerAgentService = class ServerAgentService {
         catch {
             return Buffer.from(value, 'utf8');
         }
+    }
+    isRecord(value) {
+        return typeof value === 'object' && value !== null && !Array.isArray(value);
     }
 };
 exports.ServerAgentService = ServerAgentService;
