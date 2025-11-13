@@ -57,6 +57,12 @@ let ServerAgentInstallController = class ServerAgentInstallController {
         };
     }
     async getInstallScript(token, request) {
+        return this.buildInstallerScript(token, request, { skipConfigRewrite: false });
+    }
+    async getUpdateScript(token, request) {
+        return this.buildInstallerScript(token, request, { skipConfigRewrite: true });
+    }
+    async buildInstallerScript(token, request, options) {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
         const secret = this.configService.get('AGENT_INSTALL_TOKEN_SECRET') ||
             this.configService.get('JWT_SECRET');
@@ -122,6 +128,10 @@ let ServerAgentInstallController = class ServerAgentInstallController {
             playbookConfigPath,
             playbookTimeoutSeconds
         });
+        const skipConfigRewrite = options.skipConfigRewrite ? '1' : '0';
+        const postInstallMessage = options.skipConfigRewrite
+            ? '[loadtest] Agent updated. Existing credentials preserved.'
+            : '[loadtest] Agent installed. Update $CONFIG_PATH with real credentials before restarting.';
         return `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -133,6 +143,7 @@ METADATA_PATH="${metadataPathEscaped}"
 PLAYBOOKS_PATH="${playbookPathEscaped}"
 SERVICE_NAME="${serviceName}"
 SERVICE_PATH="${serviceUnitPath}"
+SKIP_CONFIG_REWRITE="${skipConfigRewrite}"
 
 mkdir -p "$INSTALL_DIR"
 
@@ -145,6 +156,7 @@ install -d -m 755 "$(dirname "$CONFIG_PATH")"
 install -d -m 755 "$(dirname "$METADATA_PATH")"
 install -d -m 755 "$(dirname "$PLAYBOOKS_PATH")"
 
+if [ "${SKIP_CONFIG_REWRITE}" != "1" ]; then
 LT_AGENT_CONFIG_PATH="$CONFIG_PATH" \
 LT_AGENT_METADATA_PATH="$METADATA_PATH" \
 LT_AGENT_DERIVED_KEY="${derivedKey}" \
@@ -209,6 +221,9 @@ const document = {
 
 fs.writeFileSync(configPath, JSON.stringify(document, null, 2), { mode: 0o600 });
 LOADTEST_ENCRYPT_CONFIG
+else
+  echo "[loadtest] Skipping config rewrite (update mode)."
+fi
 
 if [ ! -f "$PLAYBOOKS_PATH" ]; then
 cat <<'LOADTEST_SAMPLE_PLAYBOOKS' > "$PLAYBOOKS_PATH"
@@ -253,7 +268,7 @@ EOF
 systemctl daemon-reload
 systemctl enable --now "$SERVICE_NAME"
 
-echo "[loadtest] Agent installed. Update $CONFIG_PATH with real credentials before restarting."
+echo "${postInstallMessage}"
 `;
     }
     buildAgentSource(apiUrl, configPath, agentVersion, defaultUpdateIntervalMinutes, binaryPath) {
@@ -487,6 +502,16 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], ServerAgentInstallController.prototype, "getInstallScript", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('agents/update.sh/:token'),
+    (0, common_1.Header)('Content-Type', 'text/x-shellscript'),
+    __param(0, (0, common_1.Param)('token')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ServerAgentInstallController.prototype, "getUpdateScript", null);
 exports.ServerAgentInstallController = ServerAgentInstallController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [config_1.ConfigService,

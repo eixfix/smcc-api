@@ -79,6 +79,21 @@ export class ServerAgentInstallController {
   @Get('agents/install.sh/:token')
   @Header('Content-Type', 'text/x-shellscript')
   async getInstallScript(@Param('token') token: string, @Req() request: Request): Promise<string> {
+    return this.buildInstallerScript(token, request, { skipConfigRewrite: false });
+  }
+
+  @Public()
+  @Get('agents/update.sh/:token')
+  @Header('Content-Type', 'text/x-shellscript')
+  async getUpdateScript(@Param('token') token: string, @Req() request: Request): Promise<string> {
+    return this.buildInstallerScript(token, request, { skipConfigRewrite: true });
+  }
+
+  private async buildInstallerScript(
+    token: string,
+    request: Request,
+    options: { skipConfigRewrite: boolean }
+  ): Promise<string> {
     const secret =
       this.configService.get<string>('AGENT_INSTALL_TOKEN_SECRET') ||
       this.configService.get<string>('JWT_SECRET');
@@ -171,6 +186,11 @@ export class ServerAgentInstallController {
       playbookTimeoutSeconds
     });
 
+    const skipConfigRewrite = options.skipConfigRewrite ? '1' : '0';
+    const postInstallMessage = options.skipConfigRewrite
+      ? '[loadtest] Agent updated. Existing credentials preserved.'
+      : '[loadtest] Agent installed. Update $CONFIG_PATH with real credentials before restarting.';
+
     return `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -182,6 +202,7 @@ METADATA_PATH="${metadataPathEscaped}"
 PLAYBOOKS_PATH="${playbookPathEscaped}"
 SERVICE_NAME="${serviceName}"
 SERVICE_PATH="${serviceUnitPath}"
+SKIP_CONFIG_REWRITE="${skipConfigRewrite}"
 
 mkdir -p "$INSTALL_DIR"
 
@@ -194,6 +215,7 @@ install -d -m 755 "$(dirname "$CONFIG_PATH")"
 install -d -m 755 "$(dirname "$METADATA_PATH")"
 install -d -m 755 "$(dirname "$PLAYBOOKS_PATH")"
 
+if [ "${SKIP_CONFIG_REWRITE}" != "1" ]; then
 LT_AGENT_CONFIG_PATH="$CONFIG_PATH" \
 LT_AGENT_METADATA_PATH="$METADATA_PATH" \
 LT_AGENT_DERIVED_KEY="${derivedKey}" \
@@ -258,6 +280,9 @@ const document = {
 
 fs.writeFileSync(configPath, JSON.stringify(document, null, 2), { mode: 0o600 });
 LOADTEST_ENCRYPT_CONFIG
+else
+  echo "[loadtest] Skipping config rewrite (update mode)."
+fi
 
 if [ ! -f "$PLAYBOOKS_PATH" ]; then
 cat <<'LOADTEST_SAMPLE_PLAYBOOKS' > "$PLAYBOOKS_PATH"
@@ -302,7 +327,7 @@ EOF
 systemctl daemon-reload
 systemctl enable --now "$SERVICE_NAME"
 
-echo "[loadtest] Agent installed. Update $CONFIG_PATH with real credentials before restarting."
+echo "${postInstallMessage}"
 `;
   }
 

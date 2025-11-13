@@ -235,15 +235,15 @@ model AgentUpdateManifest {
   id                String   @id @default(cuid())
   version           String
   channel           String
-  downloadUrl       String?
-  inlineSourceB64   String?  @db.LongText
-  checksumAlgorithm String?
-  checksumValue     String?
-  restartRequired   Boolean  @default(true)
-  minConfigVersion  String?
+  downloadUrl       String?  @map("download_url")
+  inlineSourceB64   String?  @map("inline_source_b64") @db.LongText
+  checksumAlgorithm String?  @map("checksum_algorithm")
+  checksumValue     String?  @map("checksum_value")
+  restartRequired   Boolean  @default(true) @map("restart_required")
+  minConfigVersion  String?  @map("min_config_version")
   notes             String?  @db.Text
-  createdAt         DateTime @default(now())
-  createdById       String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  createdById       String?  @map("created_by_id")
 
   createdBy User? @relation("AgentUpdateManifestCreatedBy", fields: [createdById], references: [id])
 

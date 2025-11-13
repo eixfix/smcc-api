@@ -17,6 +17,8 @@ export declare class ServerAgentInstallController {
         nonce: string;
     }>;
     getInstallScript(token: string, request: Request): Promise<string>;
+    getUpdateScript(token: string, request: Request): Promise<string>;
+    private buildInstallerScript;
     private buildAgentSource;
 }
 //# sourceMappingURL=server-agent-install.controller.d.ts.map
