@@ -186,7 +186,7 @@ export class ServerAgentInstallController {
       playbookTimeoutSeconds
     });
 
-    const skipConfigRewrite = options.skipConfigRewrite ? '1' : '0';
+const skipConfigRewriteFlag = options.skipConfigRewrite ? '1' : '0';
     const postInstallMessage = options.skipConfigRewrite
       ? '[loadtest] Agent updated. Existing credentials preserved.'
       : '[loadtest] Agent installed. Update $CONFIG_PATH with real credentials before restarting.';
@@ -202,7 +202,7 @@ METADATA_PATH="${metadataPathEscaped}"
 PLAYBOOKS_PATH="${playbookPathEscaped}"
 SERVICE_NAME="${serviceName}"
 SERVICE_PATH="${serviceUnitPath}"
-SKIP_CONFIG_REWRITE="${skipConfigRewrite}"
+SKIP_CONFIG_REWRITE="${skipConfigRewriteFlag}"
 
 mkdir -p "$INSTALL_DIR"
 
@@ -215,7 +215,7 @@ install -d -m 755 "$(dirname "$CONFIG_PATH")"
 install -d -m 755 "$(dirname "$METADATA_PATH")"
 install -d -m 755 "$(dirname "$PLAYBOOKS_PATH")"
 
-if [ "${SKIP_CONFIG_REWRITE}" != "1" ]; then
+if [ "\${SKIP_CONFIG_REWRITE}" != "1" ]; then
 LT_AGENT_CONFIG_PATH="$CONFIG_PATH" \
 LT_AGENT_METADATA_PATH="$METADATA_PATH" \
 LT_AGENT_DERIVED_KEY="${derivedKey}" \
