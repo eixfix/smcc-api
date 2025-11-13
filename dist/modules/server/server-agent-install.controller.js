@@ -160,6 +160,7 @@ let ServerAgentInstallController = class ServerAgentInstallController {
             : '[loadtest] Agent installed. Update $CONFIG_PATH with real credentials before restarting.';
         return `#!/usr/bin/env bash
 set -euo pipefail
+: "\${HOME:=/root}"
 
 echo "[loadtest] Installing agent files..."
 INSTALL_DIR="${installDirEscaped}"
