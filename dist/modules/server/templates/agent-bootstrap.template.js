@@ -897,6 +897,35 @@ async function attemptSelfUpdate(apiBaseUrl, token, config, options = {}) {
     return false;
   }
 
+  if (!manifest.downloadUrl && !manifest.inlineSource) {
+    const serverId = config.serverId || config.server_id;
+    if (!serverId) {
+      logError(
+        'Update',
+        'Server ID missing from config. Re-run "smcc-agent config" with valid credentials.'
+      );
+      return false;
+    }
+
+    updateState.status = 'downloading';
+    updateState.targetVersion = manifest.version;
+    updateState.lastAttemptAt = new Date().toISOString();
+
+    try {
+      const script = await downloadUpdateScript(apiBaseUrl, serverId);
+      await executeUpdateScript(script);
+      updateState.status = 'applied';
+      updateState.lastError = null;
+      logInfo('Agent updated via update.sh endpoint.');
+      return true;
+    } catch (error) {
+      updateState.status = 'error';
+      updateState.lastError = error instanceof Error ? error.message : String(error);
+      logError('Agent update failed', updateState.lastError);
+      return false;
+    }
+  }
+
   updateState.targetVersion = manifest.version;
   updateState.status = 'downloading';
   updateState.lastAttemptAt = new Date().toISOString();
