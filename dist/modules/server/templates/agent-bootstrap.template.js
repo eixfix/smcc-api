@@ -24,6 +24,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const { execSync, spawn } = require('node:child_process');
 const os = require('node:os');
+const path = require('node:path');
 
 const DEFAULT_CONFIG_PATH = process.env.LOADTEST_AGENT_CONFIG ?? '${escapedConfigPath}';
 const DEFAULT_METADATA_PATH = process.env.LOADTEST_AGENT_METADATA ?? '${escapedMetadataPath}';
@@ -345,19 +346,65 @@ if (CLI_ARGS.length > 0) {
 async function runUpdateCommand(args) {
   const config = loadConfig();
   const apiBaseUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/$/, '');
-  const force = Array.isArray(args) && (args.includes('--latest') || args.includes('--force'));
+  const serverId = config.serverId || config.server_id;
 
-  logInfo('Authenticating with API');
-  const session = await authenticate(config, apiBaseUrl);
-  const updated = await attemptSelfUpdate(apiBaseUrl, session.sessionToken, config, { force });
-
-  if (updated) {
-    logInfo('Update applied successfully. Restart the smcc-agent service to load the new binary.');
-  } else if (force) {
-    logInfo('No update artifact was available from the API.');
-  } else {
-    logInfo('Agent already running the latest version.');
+  if (!serverId) {
+    logError(
+      'Update command failed',
+      'Server ID missing from config. Re-run "smcc-agent config" with valid credentials.'
+    );
+    process.exit(1);
   }
+
+  try {
+    logInfo('Downloading update script from API');
+    const script = await downloadUpdateScript(apiBaseUrl, serverId);
+    await executeUpdateScript(script);
+    logInfo('Update script completed. Restart the smcc-agent service if it is managed by systemd.');
+  } catch (error) {
+    logError('Update command failed', error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+async function downloadUpdateScript(apiBaseUrl, serverId) {
+  const url = apiBaseUrl + '/agents/' + encodeURIComponent(serverId) + '/update.sh';
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'smcc-agent/' + AGENT_VERSION
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error('Update script download failed: ' + response.status);
+  }
+
+  return response.text();
+}
+
+async function executeUpdateScript(scriptContents) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smcc-update-'));
+  const scriptPath = path.join(tmpDir, 'update.sh');
+  fs.writeFileSync(scriptPath, scriptContents, { mode: 0o700 });
+
+  logInfo('Running update script');
+
+  await new Promise((resolve, reject) => {
+    const child = spawn('bash', [scriptPath], {
+      stdio: 'inherit'
+    });
+
+    child.on('error', (error) => reject(error));
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error('Update script exited with code ' + code));
+      }
+    });
+  }).finally(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 }
 
 function encryptEnvelopePayload(key, payload) {

@@ -231,7 +231,7 @@ export class ServerAgentInstallController {
       playbookTimeoutSeconds
     });
 
-const skipConfigRewriteFlag = options.skipConfigRewrite ? '1' : '0';
+    const skipConfigRewriteFlag = options.skipConfigRewrite ? '1' : '0';
     const postInstallMessage = options.skipConfigRewrite
       ? '[loadtest] Agent updated. Existing credentials preserved.'
       : '[loadtest] Agent installed. Update $CONFIG_PATH with real credentials before restarting.';
