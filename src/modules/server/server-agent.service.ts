@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
@@ -321,12 +320,6 @@ export class ServerAgentService {
 
     const downloadUrl = dto.downloadUrl?.trim() || null;
     const inlineSource = dto.inlineSourceB64?.trim() || null;
-
-    if (!downloadUrl && !inlineSource) {
-      throw new BadRequestException(
-        'Provide either downloadUrl or inlineSourceB64 for the agent update.'
-      );
-    }
 
     const checksumValue = dto.checksumValue?.trim() || null;
     const checksumAlgorithm =

@@ -261,9 +261,6 @@ let ServerAgentService = class ServerAgentService {
         this.ensureAdministrator(user);
         const downloadUrl = ((_a = dto.downloadUrl) === null || _a === void 0 ? void 0 : _a.trim()) || null;
         const inlineSource = ((_b = dto.inlineSourceB64) === null || _b === void 0 ? void 0 : _b.trim()) || null;
-        if (!downloadUrl && !inlineSource) {
-            throw new common_1.BadRequestException('Provide either downloadUrl or inlineSourceB64 for the agent update.');
-        }
         const checksumValue = ((_c = dto.checksumValue) === null || _c === void 0 ? void 0 : _c.trim()) || null;
         const checksumAlgorithm = checksumValue !== null
             ? ((_d = dto.checksumAlgorithm) === null || _d === void 0 ? void 0 : _d.trim()) || 'sha256'

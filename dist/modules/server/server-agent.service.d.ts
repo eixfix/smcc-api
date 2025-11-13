@@ -16,11 +16,11 @@ export declare class ServerAgentService {
     mintAgentToken(serverId: string, dto: CreateServerAgentDto, user: AuthenticatedUser): Promise<{
         agent: {
             id: string;
-            status: import(".prisma/client").$Enums.ServerAgentStatus;
             serverId: string;
             accessKey: string;
             issuedAt: Date;
             expiresAt: Date | null;
+            status: import(".prisma/client").$Enums.ServerAgentStatus;
         };
         credentials: {
             accessKey: string;
@@ -29,8 +29,8 @@ export declare class ServerAgentService {
     }>;
     revokeAgent(agentId: string, user: AuthenticatedUser): Promise<{
         id: string;
-        status: import(".prisma/client").$Enums.ServerAgentStatus;
         lastSeenAt: Date | null;
+        status: import(".prisma/client").$Enums.ServerAgentStatus;
     }>;
     authenticateAgent(dto: AgentAuthDto, clientIp: string | null): Promise<{
         sessionToken: string;
