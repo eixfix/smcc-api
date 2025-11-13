@@ -62,8 +62,11 @@ let ServerAgentInstallController = class ServerAgentInstallController {
     async getUpdateScript(token, request) {
         return this.buildInstallerScript(token, request, { skipConfigRewrite: true });
     }
+    async getUpdateScriptWithoutToken(serverId, request) {
+        return this.buildInstallerScriptForServer(serverId, request, { skipConfigRewrite: true });
+    }
     async buildInstallerScript(token, request, options) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+        var _a;
         const secret = this.configService.get('AGENT_INSTALL_TOKEN_SECRET') ||
             this.configService.get('JWT_SECRET');
         let payload;
@@ -91,6 +94,30 @@ let ServerAgentInstallController = class ServerAgentInstallController {
         if (!allowedIp || allowedIp !== clientIp) {
             throw new common_1.ForbiddenException('Installer can only be accessed from the registered server IP.');
         }
+        const installNonce = (_a = payload.nonce) !== null && _a !== void 0 ? _a : (0, node_crypto_1.randomBytes)(12).toString('base64url');
+        return this.renderInstallerScript(server.id, installNonce, options);
+    }
+    async buildInstallerScriptForServer(serverId, request, options) {
+        const server = await this.prisma.server.findUnique({
+            where: { id: serverId },
+            select: {
+                id: true,
+                allowedIp: true
+            }
+        });
+        if (!server) {
+            throw new common_1.NotFoundException('Server not found.');
+        }
+        const allowedIp = (0, ip_utils_1.normalizeIp)(server.allowedIp);
+        const clientIp = (0, ip_utils_1.normalizeIp)((0, ip_utils_1.extractClientIp)(request));
+        if (!allowedIp || allowedIp !== clientIp) {
+            throw new common_1.ForbiddenException('Installer can only be accessed from the registered server IP.');
+        }
+        const installNonce = (0, node_crypto_1.randomBytes)(12).toString('base64url');
+        return this.renderInstallerScript(server.id, installNonce, options);
+    }
+    renderInstallerScript(serverId, installNonce, options) {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
         const serviceName = (_a = this.configService.get('AGENT_SYSTEMD_SERVICE')) !== null && _a !== void 0 ? _a : 'loadtest-agent';
         const installDir = (_b = this.configService.get('AGENT_INSTALL_DIR')) !== null && _b !== void 0 ? _b : '$HOME/loadtest-agent';
         const binPath = (_c = this.configService.get('AGENT_BINARY_PATH')) !== null && _c !== void 0 ? _c : '/usr/local/bin/loadtest-agent';
@@ -105,7 +132,6 @@ let ServerAgentInstallController = class ServerAgentInstallController {
         const playbookTimeoutSeconds = Number(this.configService.get('AGENT_PLAYBOOK_TIMEOUT_SECONDS')) || 600;
         const metadataPath = (_l = this.configService.get('AGENT_METADATA_PATH')) !== null && _l !== void 0 ? _l : `${configPath}.meta.json`;
         const derivedKey = (0, node_crypto_1.randomBytes)(32).toString('base64');
-        const installNonce = (_m = payload.nonce) !== null && _m !== void 0 ? _m : (0, node_crypto_1.randomBytes)(12).toString('base64url');
         const serviceUnitPath = `/etc/systemd/system/${serviceName}.service`;
         const installDirEscaped = installDir.replace(/"/g, '\\"');
         const binPathEscaped = binPath.replace(/"/g, '\\"');
@@ -162,7 +188,7 @@ LT_AGENT_METADATA_PATH="$METADATA_PATH" \
 LT_AGENT_DERIVED_KEY="${derivedKey}" \
 LT_AGENT_INSTALL_NONCE="${installNonce}" \
 LT_AGENT_VERSION="${agentVersion}" \
-LT_AGENT_SERVER_ID="${server.id}" \
+LT_AGENT_SERVER_ID="${serverId}" \
 LT_AGENT_API_URL="${apiPublicUrl}" \
 LT_AGENT_POLL_INTERVAL="30" \
 LT_AGENT_TELEMETRY_INTERVAL="60" \
@@ -512,6 +538,16 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], ServerAgentInstallController.prototype, "getUpdateScript", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('agents/:serverId/update.sh'),
+    (0, common_1.Header)('Content-Type', 'text/x-shellscript'),
+    __param(0, (0, common_1.Param)('serverId')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ServerAgentInstallController.prototype, "getUpdateScriptWithoutToken", null);
 exports.ServerAgentInstallController = ServerAgentInstallController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [config_1.ConfigService,

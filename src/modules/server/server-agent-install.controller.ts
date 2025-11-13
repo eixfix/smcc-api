@@ -89,6 +89,16 @@ export class ServerAgentInstallController {
     return this.buildInstallerScript(token, request, { skipConfigRewrite: true });
   }
 
+  @Public()
+  @Get('agents/:serverId/update.sh')
+  @Header('Content-Type', 'text/x-shellscript')
+  async getUpdateScriptWithoutToken(
+    @Param('serverId') serverId: string,
+    @Req() request: Request
+  ): Promise<string> {
+    return this.buildInstallerScriptForServer(serverId, request, { skipConfigRewrite: true });
+  }
+
   private async buildInstallerScript(
     token: string,
     request: Request,
@@ -129,6 +139,43 @@ export class ServerAgentInstallController {
       throw new ForbiddenException('Installer can only be accessed from the registered server IP.');
     }
 
+    const installNonce = payload.nonce ?? randomBytes(12).toString('base64url');
+    return this.renderInstallerScript(server.id, installNonce, options);
+  }
+
+  private async buildInstallerScriptForServer(
+    serverId: string,
+    request: Request,
+    options: { skipConfigRewrite: boolean }
+  ): Promise<string> {
+    const server = await this.prisma.server.findUnique({
+      where: { id: serverId },
+      select: {
+        id: true,
+        allowedIp: true
+      }
+    });
+
+    if (!server) {
+      throw new NotFoundException('Server not found.');
+    }
+
+    const allowedIp = normalizeIp(server.allowedIp);
+    const clientIp = normalizeIp(extractClientIp(request));
+
+    if (!allowedIp || allowedIp !== clientIp) {
+      throw new ForbiddenException('Installer can only be accessed from the registered server IP.');
+    }
+
+    const installNonce = randomBytes(12).toString('base64url');
+    return this.renderInstallerScript(server.id, installNonce, options);
+  }
+
+  private renderInstallerScript(
+    serverId: string,
+    installNonce: string,
+    options: { skipConfigRewrite: boolean }
+  ): string {
     const serviceName =
       this.configService.get<string>('AGENT_SYSTEMD_SERVICE') ?? 'loadtest-agent';
     const installDir =
@@ -160,8 +207,6 @@ export class ServerAgentInstallController {
     const metadataPath =
       this.configService.get<string>('AGENT_METADATA_PATH') ?? `${configPath}.meta.json`;
     const derivedKey = randomBytes(32).toString('base64');
-    const installNonce = payload.nonce ?? randomBytes(12).toString('base64url');
-
     const serviceUnitPath = `/etc/systemd/system/${serviceName}.service`;
     const installDirEscaped = installDir.replace(/"/g, '\\"');
     const binPathEscaped = binPath.replace(/"/g, '\\"');
@@ -221,7 +266,7 @@ LT_AGENT_METADATA_PATH="$METADATA_PATH" \
 LT_AGENT_DERIVED_KEY="${derivedKey}" \
 LT_AGENT_INSTALL_NONCE="${installNonce}" \
 LT_AGENT_VERSION="${agentVersion}" \
-LT_AGENT_SERVER_ID="${server.id}" \
+LT_AGENT_SERVER_ID="${serverId}" \
 LT_AGENT_API_URL="${apiPublicUrl}" \
 LT_AGENT_POLL_INTERVAL="30" \
 LT_AGENT_TELEMETRY_INTERVAL="60" \
