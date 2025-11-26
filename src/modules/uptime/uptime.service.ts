@@ -62,7 +62,7 @@ interface ProbeResult {
 }
 
 const DEFAULT_SCHEDULER_INTERVAL_MS = Number(
-  process.env.UPTIME_SCHEDULER_INTERVAL_MS ?? 5 * 60 * 1000
+  process.env.UPTIME_SCHEDULER_INTERVAL_MS ?? 2 * 60 * 1000
 );
 const MIN_SCHEDULER_INTERVAL_MS = 1000;
 const DEFAULT_DIGEST_INTERVAL_MS = Number(
@@ -617,6 +617,7 @@ export class UptimeService implements OnModuleInit, OnModuleDestroy {
           url: target.url,
           state: target.currentSnapshot?.state ?? UptimeState.UNKNOWN,
           reason: target.currentSnapshot?.reason ?? UptimeReason.UNKNOWN,
+          reasonDetail: target.currentSnapshot?.reasonDetail ?? null,
           since: target.currentSnapshot?.since ?? new Date()
         }));
 

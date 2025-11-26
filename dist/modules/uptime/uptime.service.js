@@ -35,7 +35,7 @@ const TARGET_WITH_CONTEXT_INCLUDE = {
     },
     currentSnapshot: true
 };
-const DEFAULT_SCHEDULER_INTERVAL_MS = Number((_a = process.env.UPTIME_SCHEDULER_INTERVAL_MS) !== null && _a !== void 0 ? _a : 5 * 60 * 1000);
+const DEFAULT_SCHEDULER_INTERVAL_MS = Number((_a = process.env.UPTIME_SCHEDULER_INTERVAL_MS) !== null && _a !== void 0 ? _a : 2 * 60 * 1000);
 const MIN_SCHEDULER_INTERVAL_MS = 1000;
 const DEFAULT_DIGEST_INTERVAL_MS = Number((_b = process.env.UPTIME_DIGEST_INTERVAL_MS) !== null && _b !== void 0 ? _b : 4.8 * 60 * 60 * 1000);
 let UptimeService = UptimeService_1 = class UptimeService {
@@ -453,13 +453,14 @@ let UptimeService = UptimeService_1 = class UptimeService {
             const summaryTargets = targets
                 .filter((target) => target.currentSnapshot)
                 .map((target) => {
-                var _a, _b, _c, _d, _e, _f;
+                var _a, _b, _c, _d, _e, _f, _g, _h;
                 return ({
                     label: target.label,
                     url: target.url,
                     state: (_b = (_a = target.currentSnapshot) === null || _a === void 0 ? void 0 : _a.state) !== null && _b !== void 0 ? _b : client_1.UptimeState.UNKNOWN,
                     reason: (_d = (_c = target.currentSnapshot) === null || _c === void 0 ? void 0 : _c.reason) !== null && _d !== void 0 ? _d : client_1.UptimeReason.UNKNOWN,
-                    since: (_f = (_e = target.currentSnapshot) === null || _e === void 0 ? void 0 : _e.since) !== null && _f !== void 0 ? _f : new Date()
+                    reasonDetail: (_f = (_e = target.currentSnapshot) === null || _e === void 0 ? void 0 : _e.reasonDetail) !== null && _f !== void 0 ? _f : null,
+                    since: (_h = (_g = target.currentSnapshot) === null || _g === void 0 ? void 0 : _g.since) !== null && _h !== void 0 ? _h : new Date()
                 });
             });
             if (org.uptimeWebhookUrl) {

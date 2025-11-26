@@ -96,6 +96,7 @@ export class UptimeNotifierService {
       url: string;
       state: UptimeState;
       reason: UptimeReason;
+      reasonDetail?: string | null;
       since: Date;
     }>
   ): Promise<void> {
@@ -113,7 +114,8 @@ export class UptimeNotifierService {
 
     const lines = targets.slice(0, 20).map((target) => {
       const duration = this.formatDuration(Date.now() - target.since.getTime());
-      return `• ${target.label} – ${target.state} (${duration}, ${target.reason})`;
+      const reasonText = target.reasonDetail ?? target.reason;
+      return `• ${target.label} – ${target.state} (${duration}, ${reasonText})`;
     });
 
     const payload = {

@@ -37,6 +37,7 @@ export declare class UptimeNotifierService {
         url: string;
         state: UptimeState;
         reason: UptimeReason;
+        reasonDetail?: string | null;
         since: Date;
     }>): Promise<void>;
     sendTest(webhookUrl: string, label: string, payload: TestNotificationPayload): Promise<void>;

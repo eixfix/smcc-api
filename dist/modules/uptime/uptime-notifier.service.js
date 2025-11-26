@@ -73,8 +73,10 @@ let UptimeNotifierService = UptimeNotifierService_1 = class UptimeNotifierServic
             return acc;
         }, {});
         const lines = targets.slice(0, 20).map((target) => {
+            var _a;
             const duration = this.formatDuration(Date.now() - target.since.getTime());
-            return `• ${target.label} – ${target.state} (${duration}, ${target.reason})`;
+            const reasonText = (_a = target.reasonDetail) !== null && _a !== void 0 ? _a : target.reason;
+            return `• ${target.label} – ${target.state} (${duration}, ${reasonText})`;
         });
         const payload = {
             content: `🧭 Uptime digest for ${organizationName}`,
