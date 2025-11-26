@@ -8,15 +8,16 @@ export declare class OrganizationController {
     private readonly organizationService;
     constructor(organizationService: OrganizationService);
     findAll(user: AuthenticatedUser): Promise<({
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
         name: string;
+        id: string;
         slug: string;
         credits: number;
+        createdAt: Date;
+        updatedAt: Date;
         lastCreditedAt: Date;
         lastDebitAt: Date | null;
         scanSuspendedAt: Date | null;
+        uptimeWebhookUrl: string | null;
         ownerId: string | null;
     } & {
         _count: {
@@ -24,27 +25,29 @@ export declare class OrganizationController {
         };
     })[]>;
     findOne(id: string, user: AuthenticatedUser): Promise<{
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
         name: string;
+        id: string;
         slug: string;
         credits: number;
+        createdAt: Date;
+        updatedAt: Date;
         lastCreditedAt: Date;
         lastDebitAt: Date | null;
         scanSuspendedAt: Date | null;
+        uptimeWebhookUrl: string | null;
         ownerId: string | null;
     } | null>;
     create(payload: CreateOrganizationDto): Promise<{
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
         name: string;
+        id: string;
         slug: string;
         credits: number;
+        createdAt: Date;
+        updatedAt: Date;
         lastCreditedAt: Date;
         lastDebitAt: Date | null;
         scanSuspendedAt: Date | null;
+        uptimeWebhookUrl: string | null;
         ownerId: string | null;
     } & {
         owner: {
@@ -57,16 +60,17 @@ export declare class OrganizationController {
             projects: number;
         };
     }>;
-    update(id: string, payload: UpdateOrganizationDto): Promise<{
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
+    update(id: string, payload: UpdateOrganizationDto, user: AuthenticatedUser): Promise<{
         name: string;
+        id: string;
         slug: string;
         credits: number;
+        createdAt: Date;
+        updatedAt: Date;
         lastCreditedAt: Date;
         lastDebitAt: Date | null;
         scanSuspendedAt: Date | null;
+        uptimeWebhookUrl: string | null;
         ownerId: string | null;
     }>;
     addCredits(id: string, payload: UpdateOrganizationCreditsDto): Promise<{

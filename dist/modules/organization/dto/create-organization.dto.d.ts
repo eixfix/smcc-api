@@ -6,6 +6,7 @@ export declare class CreateOrganizationOwnerDto {
 export declare class CreateOrganizationDto {
     name: string;
     slug: string;
+    uptimeWebhookUrl?: string;
     owner: CreateOrganizationOwnerDto;
 }
 //# sourceMappingURL=create-organization.dto.d.ts.map

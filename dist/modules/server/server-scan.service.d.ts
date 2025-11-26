@@ -16,54 +16,54 @@ export declare class ServerScanService {
     constructor(prisma: PrismaService, creditService: OrganizationCreditService, serverService: ServerService, serverAgentService: ServerAgentService);
     queueScan(serverId: string, dto: QueueServerScanDto, user: AuthenticatedUser): Promise<{
         result: {
-            createdAt: Date;
             summaryJson: Prisma.JsonValue;
+            createdAt: Date;
             rawLog: string | null;
             storageMetricsJson: Prisma.JsonValue;
             memoryMetricsJson: Prisma.JsonValue;
             securityFindingsJson: Prisma.JsonValue;
         } | null;
         id: string;
-        serverId: string;
         status: import(".prisma/client").$Enums.ServerScanStatus;
+        startedAt: Date | null;
+        completedAt: Date | null;
         agentId: string | null;
+        serverId: string;
         playbook: string;
         parameters: Prisma.JsonValue;
         queuedAt: Date;
-        startedAt: Date | null;
-        completedAt: Date | null;
         failureReason: string | null;
         creditsCharged: number | null;
         agent: {
             id: string;
-            lastSeenAt: Date | null;
             status: import(".prisma/client").$Enums.ServerAgentStatus;
+            lastSeenAt: Date | null;
         } | null;
     }>;
     listScans(serverId: string, user: AuthenticatedUser): Promise<{
         result: {
-            createdAt: Date;
             summaryJson: Prisma.JsonValue;
+            createdAt: Date;
             rawLog: string | null;
             storageMetricsJson: Prisma.JsonValue;
             memoryMetricsJson: Prisma.JsonValue;
             securityFindingsJson: Prisma.JsonValue;
         } | null;
         id: string;
-        serverId: string;
         status: import(".prisma/client").$Enums.ServerScanStatus;
+        startedAt: Date | null;
+        completedAt: Date | null;
         agentId: string | null;
+        serverId: string;
         playbook: string;
         parameters: Prisma.JsonValue;
         queuedAt: Date;
-        startedAt: Date | null;
-        completedAt: Date | null;
         failureReason: string | null;
         creditsCharged: number | null;
         agent: {
             id: string;
-            lastSeenAt: Date | null;
             status: import(".prisma/client").$Enums.ServerAgentStatus;
+            lastSeenAt: Date | null;
         } | null;
     }[]>;
     listRecentScans(user: AuthenticatedUser, limit?: number): Promise<{
@@ -73,8 +73,8 @@ export declare class ServerScanService {
             hostname: string | null;
         };
         organization: {
-            name: string;
             id: string;
+            name: string;
         };
         result: {
             summaryJson: Prisma.JsonValue;
@@ -84,26 +84,26 @@ export declare class ServerScanService {
         } | null;
         id: string;
         status: import(".prisma/client").$Enums.ServerScanStatus;
-        playbook: string;
-        queuedAt: Date;
         startedAt: Date | null;
         completedAt: Date | null;
+        playbook: string;
+        queuedAt: Date;
         failureReason: string | null;
         creditsCharged: number | null;
         agent: {
             id: string;
-            accessKey: string;
             status: import(".prisma/client").$Enums.ServerAgentStatus;
+            accessKey: string;
         } | null;
     }[]>;
     getNextQueuedScan(agent: AgentSessionContext): Promise<{
         id: string;
-        serverId: string;
         status: import(".prisma/client").$Enums.ServerScanStatus;
+        startedAt: Date | null;
+        serverId: string;
         playbook: string;
         parameters: Prisma.JsonValue;
         queuedAt: Date;
-        startedAt: Date | null;
     } | null>;
     submitScanReport(agent: AgentSessionContext, scanId: string, dto: ReportServerScanDto): Promise<{
         id: string;
@@ -112,8 +112,8 @@ export declare class ServerScanService {
     }>;
     ingestTelemetry(agent: AgentSessionContext, dto: TelemetryPayloadDto): Promise<{
         id: string;
-        serverId: string;
         agentId: string | null;
+        serverId: string;
         creditsCharged: number | null;
         cpuPercent: number | null;
         memoryPercent: number | null;

@@ -24,4 +24,9 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateProjectDto.prototype, "description", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUrl)({ require_tld: false }),
+    __metadata("design:type", String)
+], CreateProjectDto.prototype, "uptimeWebhookUrl", void 0);
 //# sourceMappingURL=create-project.dto.js.map

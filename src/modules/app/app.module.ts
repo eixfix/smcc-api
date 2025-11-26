@@ -13,6 +13,7 @@ import { ProjectModule } from '../project/project.module';
 import { SecurityModule } from '../security/security.module';
 import { TaskModule } from '../task/task.module';
 import { ServerModule } from '../server/server.module';
+import { UptimeModule } from '../uptime/uptime.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -34,7 +35,8 @@ import { AppService } from './app.service';
     ProjectModule,
     TaskModule,
     SecurityModule,
-    ServerModule
+    ServerModule,
+    UptimeModule
   ],
   controllers: [AppController],
   providers: [

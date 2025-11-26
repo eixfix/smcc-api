@@ -34,8 +34,8 @@ let OrganizationController = class OrganizationController {
     create(payload) {
         return this.organizationService.create(payload);
     }
-    update(id, payload) {
-        return this.organizationService.update(id, payload);
+    update(id, payload, user) {
+        return this.organizationService.update(id, payload, user);
     }
     addCredits(id, payload) {
         return this.organizationService.addCredits(id, payload.amount);
@@ -67,11 +67,12 @@ __decorate([
 ], OrganizationController.prototype, "create", null);
 __decorate([
     (0, common_1.Put)(':id'),
-    (0, roles_decorator_1.Roles)(client_1.Role.ADMINISTRATOR),
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMINISTRATOR, client_1.Role.OWNER),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_organization_dto_1.UpdateOrganizationDto]),
+    __metadata("design:paramtypes", [String, update_organization_dto_1.UpdateOrganizationDto, Object]),
     __metadata("design:returntype", void 0)
 ], OrganizationController.prototype, "update", null);
 __decorate([

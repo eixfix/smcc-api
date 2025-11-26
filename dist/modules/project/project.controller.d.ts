@@ -12,6 +12,7 @@ export declare class ProjectController {
         name: string;
         description: string | null;
         organizationId: string;
+        uptimeWebhookUrl: string | null;
     }[]>;
     create(organizationId: string, payload: CreateProjectDto, user: AuthenticatedUser): Promise<{
         id: string;
@@ -20,6 +21,7 @@ export declare class ProjectController {
         name: string;
         description: string | null;
         organizationId: string;
+        uptimeWebhookUrl: string | null;
     }>;
     update(projectId: string, payload: UpdateProjectDto, user: AuthenticatedUser): Promise<{
         id: string;
@@ -28,6 +30,7 @@ export declare class ProjectController {
         name: string;
         description: string | null;
         organizationId: string;
+        uptimeWebhookUrl: string | null;
     }>;
 }
 //# sourceMappingURL=project.controller.d.ts.map

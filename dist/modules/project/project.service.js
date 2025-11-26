@@ -35,7 +35,8 @@ let ProjectService = class ProjectService {
                 data: {
                     name: payload.name,
                     description: payload.description,
-                    organizationId
+                    organizationId,
+                    uptimeWebhookUrl: payload.uptimeWebhookUrl
                 }
             });
         });

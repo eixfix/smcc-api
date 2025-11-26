@@ -38,6 +38,32 @@ enum ServerScanStatus {
   TIMED_OUT
 }
 
+enum UptimeState {
+  UP
+  DEGRADED
+  DOWN
+  UNKNOWN
+}
+
+enum UptimeSensitivity {
+  PRODUCTION
+  STAGING
+}
+
+enum UptimeProtocol {
+  HTTP
+  HTTPS
+}
+
+enum UptimeReason {
+  STATUS_CODE
+  TIMEOUT
+  TLS
+  DNS
+  NETWORK
+  UNKNOWN
+}
+
 model User {
   id                      String                @id @default(cuid())
   email                   String                @unique
@@ -65,11 +91,13 @@ model Organization {
   lastCreditedAt  DateTime             @default(now())
   lastDebitAt     DateTime?
   scanSuspendedAt DateTime?
+  uptimeWebhookUrl String?
   projects        Project[]
   members         OrganizationMember[]
   ownerId         String?
   owner           User?                @relation("OrganizationOwner", fields: [ownerId], references: [id])
   servers         Server[]
+  uptimeTargets   UptimeTarget[]
 
   @@map("organizations")
 }
@@ -93,11 +121,13 @@ model Project {
   name           String
   description    String?
   organizationId String
+  uptimeWebhookUrl String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   tasks        Task[]
+  uptimeTargets UptimeTarget[]
 
   @@map("projects")
 }
@@ -153,6 +183,7 @@ model Server {
   agents       ServerAgent[]
   scans        ServerScan[]
   telemetry    ServerTelemetry[]
+  uptimeTargets UptimeTarget[]
 
   @@index([organizationId, name])
   @@map("servers")
@@ -194,6 +225,7 @@ model ServerScan {
   server Server            @relation(fields: [serverId], references: [id])
   agent  ServerAgent?      @relation(fields: [agentId], references: [id])
   result ServerScanResult?
+  analysisSample ScanAnalysisSample?
 
   @@index([serverId, queuedAt])
   @@map("server_scans")
@@ -231,6 +263,30 @@ model ServerTelemetry {
   @@map("server_telemetry")
 }
 
+model ScanAnalysisSample {
+  id               String   @id @default(cuid())
+  scanId           String   @unique
+  serverId         String
+  agentId          String?
+  organizationId   String?
+  status           String
+  failureReason    String?
+  durationSeconds  Int?
+  p95LatencyMs     Float?
+  averageLatencyMs Float?
+  successRate      Float?
+  cpuPercent       Float?
+  memoryPercent    Float?
+  diskPercent      Float?
+  features         Json?
+  collectedAt      DateTime @default(now())
+
+  scan ServerScan @relation(fields: [scanId], references: [id])
+
+  @@index([serverId, collectedAt])
+  @@map("scan_analysis_samples")
+}
+
 model AgentUpdateManifest {
   id                String   @id @default(cuid())
   version           String
@@ -249,4 +305,78 @@ model AgentUpdateManifest {
 
   @@index([version, channel])
   @@map("agent_update_manifests")
+}
+
+model UptimeTarget {
+  id                    String           @id @default(cuid())
+  organizationId        String
+  projectId             String?
+  serverId              String?
+  label                 String
+  url                   String
+  protocol              UptimeProtocol
+  region                String?
+  sensitivity           UptimeSensitivity @default(PRODUCTION)
+  checkIntervalSeconds  Int              @default(300)
+  requestTimeoutMs      Int              @default(5000)
+  expectedStatus        Int?
+  alertWebhookUrl       String?
+  isPaused              Boolean          @default(false)
+  lastState             UptimeState      @default(UNKNOWN)
+  lastReason            UptimeReason     @default(UNKNOWN)
+  lastLatencyMs         Int?
+  lastCheckedAt         DateTime?
+  lastTlsExpiry         DateTime?
+  currentSnapshotId     String?          @unique
+  currentSnapshot       UptimeStatusSnapshot? @relation("CurrentSnapshot", fields: [currentSnapshotId], references: [id])
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  project      Project?     @relation(fields: [projectId], references: [id])
+  server       Server?      @relation(fields: [serverId], references: [id])
+  checks       UptimeCheck[]
+  snapshots    UptimeStatusSnapshot[]
+
+  @@index([organizationId, url])
+  @@index([serverId])
+  @@map("uptime_targets")
+}
+
+model UptimeCheck {
+  id              String      @id @default(cuid())
+  targetId        String
+  state           UptimeState
+  reason          UptimeReason
+  reasonDetail    String?
+  statusCode      Int?
+  latencyMs       Int?
+  tlsExpiresAt    DateTime?
+  region          String?
+  resolvedAddress String?
+  checkedAt       DateTime    @default(now())
+
+  target UptimeTarget @relation(fields: [targetId], references: [id])
+  snapshots UptimeStatusSnapshot[] @relation("CheckSnapshots")
+
+  @@index([targetId, checkedAt])
+  @@map("uptime_checks")
+}
+
+model UptimeStatusSnapshot {
+  id          String       @id @default(cuid())
+  targetId    String
+  state       UptimeState
+  reason      UptimeReason
+  reasonDetail String?
+  since       DateTime
+  lastCheckId String?
+  updatedAt   DateTime     @updatedAt
+
+  target         UptimeTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  lastCheck      UptimeCheck? @relation("CheckSnapshots", fields: [lastCheckId], references: [id])
+  currentForTarget UptimeTarget? @relation("CurrentSnapshot")
+
+  @@index([targetId, since])
+  @@map("uptime_status_snapshots")
 }

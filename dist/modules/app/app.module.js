@@ -21,6 +21,7 @@ const project_module_1 = require("../project/project.module");
 const security_module_1 = require("../security/security.module");
 const task_module_1 = require("../task/task.module");
 const server_module_1 = require("../server/server.module");
+const uptime_module_1 = require("../uptime/uptime.module");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 let AppModule = class AppModule {
@@ -45,7 +46,8 @@ exports.AppModule = AppModule = __decorate([
             project_module_1.ProjectModule,
             task_module_1.TaskModule,
             security_module_1.SecurityModule,
-            server_module_1.ServerModule
+            server_module_1.ServerModule,
+            uptime_module_1.UptimeModule
         ],
         controllers: [app_controller_1.AppController],
         providers: [

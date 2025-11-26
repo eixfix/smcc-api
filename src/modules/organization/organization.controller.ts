@@ -30,9 +30,13 @@ export class OrganizationController {
   }
 
   @Put(':id')
-  @Roles(Role.ADMINISTRATOR)
-  update(@Param('id') id: string, @Body() payload: UpdateOrganizationDto) {
-    return this.organizationService.update(id, payload);
+  @Roles(Role.ADMINISTRATOR, Role.OWNER)
+  update(
+    @Param('id') id: string,
+    @Body() payload: UpdateOrganizationDto,
+    @CurrentUser() user: AuthenticatedUser
+  ) {
+    return this.organizationService.update(id, payload, user);
   }
 
   @Post(':id/credits')

@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Length } from 'class-validator';
+import { IsOptional, IsString, IsUrl, Length } from 'class-validator';
 
 export class CreateProjectDto {
   @IsString()
@@ -8,4 +8,8 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  uptimeWebhookUrl?: string;
 }

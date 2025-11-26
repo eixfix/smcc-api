@@ -1,10 +1,12 @@
 import { Type } from 'class-transformer';
 import {
   IsEmail,
+  IsOptional,
   IsString,
   Length,
   Matches,
   MinLength,
+  IsUrl,
   ValidateNested
 } from 'class-validator';
 
@@ -31,6 +33,10 @@ export class CreateOrganizationDto {
     message: 'Slug can only include lowercase letters, numbers, and hyphens.'
   })
   slug!: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  uptimeWebhookUrl?: string;
 
   @ValidateNested()
   @Type(() => CreateOrganizationOwnerDto)

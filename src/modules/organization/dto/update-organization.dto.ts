@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Length, Matches } from 'class-validator';
+import { IsOptional, IsString, IsUrl, Length, Matches } from 'class-validator';
 
 export class UpdateOrganizationDto {
   @IsOptional()
@@ -12,4 +12,8 @@ export class UpdateOrganizationDto {
     message: 'Slug can only include lowercase letters, numbers, and hyphens.'
   })
   slug?: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  uptimeWebhookUrl?: string;
 }

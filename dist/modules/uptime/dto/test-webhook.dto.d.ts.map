@@ -1,0 +1,1 @@
+{"version":3,"file":"test-webhook.dto.d.ts","sourceRoot":"","sources":["../../../../src/modules/uptime/dto/test-webhook.dto.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,YAAY,EAAE,WAAW,EAAE,MAAM,gBAAgB,CAAC;AAE3D,qBAAa,cAAc;IAGzB,UAAU,CAAC,EAAE,MAAM,CAAC;IAIpB,KAAK,CAAC,EAAE,WAAW,CAAC;IAIpB,MAAM,CAAC,EAAE,YAAY,CAAC;IAItB,YAAY,CAAC,EAAE,MAAM,CAAC;CACvB"}

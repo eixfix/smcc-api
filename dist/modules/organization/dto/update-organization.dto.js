@@ -28,4 +28,9 @@ __decorate([
     }),
     __metadata("design:type", String)
 ], UpdateOrganizationDto.prototype, "slug", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUrl)({ require_tld: false }),
+    __metadata("design:type", String)
+], UpdateOrganizationDto.prototype, "uptimeWebhookUrl", void 0);
 //# sourceMappingURL=update-organization.dto.js.map

@@ -45,6 +45,11 @@ __decorate([
     __metadata("design:type", String)
 ], CreateOrganizationDto.prototype, "slug", void 0);
 __decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUrl)({ require_tld: false }),
+    __metadata("design:type", String)
+], CreateOrganizationDto.prototype, "uptimeWebhookUrl", void 0);
+__decorate([
     (0, class_validator_1.ValidateNested)(),
     (0, class_transformer_1.Type)(() => CreateOrganizationOwnerDto),
     __metadata("design:type", CreateOrganizationOwnerDto)

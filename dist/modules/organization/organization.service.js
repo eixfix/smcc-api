@@ -82,6 +82,7 @@ let OrganizationService = class OrganizationService {
                 data: {
                     name: payload.name,
                     slug: payload.slug,
+                    uptimeWebhookUrl: payload.uptimeWebhookUrl,
                     ownerId: owner.id,
                     members: {
                         create: {
@@ -109,11 +110,40 @@ let OrganizationService = class OrganizationService {
             return organization;
         });
     }
-    update(id, payload) {
+    async update(id, payload, user) {
+        if (user.role === client_1.Role.ADMINISTRATOR) {
+            return this.prisma.organization.update({
+                where: { id },
+                data: payload
+            });
+        }
+        await this.ensureOrganizationOwnerAccess(id, user);
         return this.prisma.organization.update({
             where: { id },
             data: payload
         });
+    }
+    async ensureOrganizationOwnerAccess(organizationId, user) {
+        if (user.role === client_1.Role.ADMINISTRATOR) {
+            const exists = await this.prisma.organization.findUnique({
+                where: { id: organizationId },
+                select: { id: true }
+            });
+            if (!exists) {
+                throw new common_1.NotFoundException('Organization not found.');
+            }
+            return;
+        }
+        const membership = await this.prisma.organizationMember.findFirst({
+            where: {
+                organizationId,
+                userId: user.userId
+            },
+            select: { role: true }
+        });
+        if (!membership || membership.role !== client_1.Role.OWNER) {
+            throw new common_1.ForbiddenException('Owner privileges are required for this action.');
+        }
     }
     async addCredits(id, amount) {
         const credits = await this.creditService.addCredits(id, amount);
